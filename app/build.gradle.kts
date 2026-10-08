@@ -44,7 +44,7 @@ fun slteHost(url: String): String? = url
 val slteAppName = slteValue("SLTE_APP_NAME") ?: "SLTE"
 val slteApplicationId = slteValue("SLTE_APPLICATION_ID") ?: "com.slte.app"
 val slteVersionCode = slteValue("SLTE_VERSION_CODE")?.toIntOrNull() ?: 1
-val slteVersionName = slteValue("SLTE_VERSION_NAME") ?: "1.0.0"
+val slteVersionName = slteValue("SLTE_VERSION_NAME") ?: "2.0.0-beta"
 
 // Android 包名的每一段必须以字母开头（数字不能打头：91.vip.fun 这类会被 AAPT 拒绝，
 // 报错出现在资源链接阶段，信息很不直观）。这里提前校验并给出可读提示。
