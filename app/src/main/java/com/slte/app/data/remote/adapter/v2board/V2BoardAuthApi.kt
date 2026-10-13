@@ -166,13 +166,10 @@ abstract class V2BoardAuthApi<U : V2BoardUserRetrofit>(
 
     override suspend fun fetchSubscribeInfo(): SubscribeInfoDto {
         val response = AdapterExecute.typed { userApi.fetchSubscribe() }
-        val data = response.data
-        if (data == null) {
-            if (BuildConfig.DEBUG) {
-                AppLog.d("SLTE-Api", "fetchSubscribeInfo: 无订阅，返回空订阅")
-            }
-            return SubscribeInfoDto()
-        }
+        // data 为空说明服务器没返回订阅数据（异常响应）：按失败处理；无套餐的账号返回的是带字段的空对象，不在这里
+        val data =
+            response.data
+                ?: throw ApiException("服务器未返回订阅数据", ApiErrors.EMPTY_DATA)
         if (BuildConfig.DEBUG) {
             AppLog.d("SLTE-Api", "fetchSubscribeInfo: planId=${data.planId}, planName=${data.plan?.name}, expiredAt=${data.expiredAt}")
         }

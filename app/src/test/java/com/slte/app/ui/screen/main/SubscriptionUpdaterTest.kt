@@ -3,6 +3,9 @@ package com.slte.app.ui.screen.main
 import com.slte.app.R
 import com.slte.app.data.repository.OrderRepositoryImpl
 import com.slte.app.domain.model.OrderInfo
+import com.slte.app.domain.model.ServerNode
+import com.slte.app.domain.model.ServerType
+import com.slte.app.domain.model.SpecialNodeSnapshot
 import com.slte.app.domain.model.SubscribeInfo
 import com.slte.app.domain.model.User
 import com.slte.app.domain.repository.ServerRepository
@@ -154,7 +157,7 @@ class SubscriptionUpdaterTest {
         assertTrue(value.hasPlan)
         assertFalse("更新完成后不应仍标记更新中", value.isUpdating)
         assertTrue(value.dataLoaded)
-        coVerify { serverRepository.invalidateCache() }
+        coVerify(exactly = 0) { serverRepository.invalidateCache() }
     }
 
     @Test
@@ -239,7 +242,45 @@ class SubscriptionUpdaterTest {
         assertEquals("进阶套餐", state.value.planName)
         assertTrue(state.value.hasPlan)
         assertEquals(49, state.value.daysUntilExpired)
-        coVerify { serverRepository.invalidateCache() }
+        coVerify(exactly = 0) { serverRepository.invalidateCache() }
+    }
+
+    @Test
+    fun `强制刷新节点时直接拉取并覆盖节点名`() = runTest(mainRule.dispatcher) {
+        val fakeServers = FakeServerRepository(listOf(node("香港01")))
+        val writer = DashboardDataWriter(subscribeRepository, fakeServers, expiryUseCase)
+        val state = data()
+
+        writer.loadServers(this, state, force = true)
+        advanceUntilIdle()
+
+        assertEquals(listOf(true), fakeServers.forces)
+        assertEquals("香港01", state.value.serverName)
+    }
+
+    private fun node(name: String) = ServerNode(id = 1, name = name, type = ServerType.VLESS, host = "h.example.com", port = 443)
+
+    private class FakeServerRepository(private val nodes: List<ServerNode>) : ServerRepository {
+        val forces = mutableListOf<Boolean>()
+
+        override suspend fun fetchServers(force: Boolean): Result<List<ServerNode>> {
+            forces += force
+            return Result.success(nodes)
+        }
+
+        override fun getCachedServers(): List<ServerNode>? = null
+
+        override fun invalidateCache() = Unit
+
+        override fun saveAutoNodeSnapshot(snapshot: SpecialNodeSnapshot) = Unit
+
+        override fun getAutoNodeSnapshot(): SpecialNodeSnapshot? = null
+
+        override fun saveFallbackNodeSnapshot(snapshot: SpecialNodeSnapshot) = Unit
+
+        override fun getFallbackNodeSnapshot(): SpecialNodeSnapshot? = null
+
+        override fun invalidateSpecialNodeSnapshots() = Unit
     }
 
     @Test
