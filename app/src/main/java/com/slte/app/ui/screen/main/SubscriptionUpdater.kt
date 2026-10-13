@@ -9,7 +9,6 @@ import com.slte.app.kernel.KernelBridge
 import com.slte.app.kernel.KernelConfig
 import com.slte.app.kernel.KernelProxy
 import com.slte.app.kernel.ProfileUpdateResult
-import com.slte.app.kernel.clearSpeedResults
 import com.slte.app.kernel.refreshSelectionAndMeasure
 import com.slte.app.utils.AppLog
 import com.slte.app.utils.Constants
@@ -59,8 +58,8 @@ constructor(
                         val kernelResult = updateProfileWithFreshLink()
                         val kernelOk = kernelResult != ProfileUpdateResult.FAILED
                         if (kernelOk) {
-                            serverRepository.invalidateCache()
-                            dataWriter.loadServers(scope, data)
+                            // 不清缓存，强制拉新节点原地覆盖：刷新期间旧列表保持可见
+                            dataWriter.loadServers(scope, data, force = true)
 
                             scope.launch { autoSpeedTestAfterUpdate(configChanged = true) }
                         }
@@ -110,8 +109,7 @@ constructor(
                     if (!info.hasPlan) return@fold
                     val result = kernelConfig.updateProfile()
                     if (result != ProfileUpdateResult.FAILED) {
-                        serverRepository.invalidateCache()
-                        dataWriter.loadServers(scope, data)
+                        dataWriter.loadServers(scope, data, force = true)
                         scope.launch { autoSpeedTestAfterUpdate(configChanged = true) }
                         dataWriter.applySubscribeInfo(data, info, errorMessageRes = null)
                     }
@@ -162,7 +160,6 @@ constructor(
             }
             val hasPlan = info?.hasPlan == true
             val kernelResult = if (hasPlan) kernelConfig.updateProfile() else ProfileUpdateResult.FAILED
-            serverRepository.invalidateCache()
             var servers = serverRepository.fetchServers(force = true).getOrNull().orEmpty()
             if (servers.isEmpty() && hasPlan) {
                 delay(3000)
@@ -216,10 +213,8 @@ constructor(
     }
 
     /**
-     * 订阅更新后的收尾：先把选择方式立刻交给内核（自动选择/故障转移马上生效），
-     * 再用流式测速把每个节点先出的结果陆续写进缓存——不等待全部节点。
-     *
-     * @param configChanged 配置被改写时，上一份订阅的延迟不再可信，先清缓存。
+     * 订阅更新后的收尾：先让自动选择/故障转移立刻生效，再流式测速（先出先写缓存，不等全部节点）。
+     * configChanged 时重新测速：旧延迟保留显示，测出结果后逐个覆盖。
      */
     private suspend fun autoSpeedTestAfterUpdate(configChanged: Boolean) {
         if (configChanged && kernelManager.vpnConnected.value) {
@@ -227,7 +222,6 @@ constructor(
             withTimeoutOrNull(SPEED_TEST_WAIT_MS) {
                 kernelManager.profileLoaded.first { it > before }
             }
-            kernelProxy.clearSpeedResults()
             serverRepository.invalidateSpecialNodeSnapshots()
         }
         kernelProxy.refreshSelectionAndMeasure()
