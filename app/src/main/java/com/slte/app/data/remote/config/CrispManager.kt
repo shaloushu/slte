@@ -18,6 +18,7 @@ class CrispManager
 @Inject
 constructor() : SupportChat {
     private var config: CrispConfig? = null
+    private var appContext: Context? = null
     private var initialized = false
     private var lastEmail: String? = null
 
@@ -45,13 +46,15 @@ constructor() : SupportChat {
         context: Context,
         config: CrispConfig,
     ) {
+        val applicationContext = context.applicationContext
+        appContext = applicationContext
         if (!config.enabled || config.websiteId.isNotBlank().not()) return
         if (initialized && this.config?.websiteId == config.websiteId) return
         this.config = config
         if (initialized) {
             clearUser()
         }
-        Crisp.configure(context.applicationContext, config.websiteId)
+        Crisp.configure(applicationContext, config.websiteId)
         if (!initialized) {
             Crisp.addCallback(sessionCallback)
         }
@@ -89,11 +92,16 @@ constructor() : SupportChat {
         context.startActivity(Intent(context, ChatActivity::class.java))
     }
 
+    /**
+     * 登出清理：重置客服会话（SDK 官方接口）。
+     * 不能用 setUserEmail("") 代替——空邮箱会让之后的匿名会话渲染不出聊天页。
+     */
     fun clearUser() {
+        val context = appContext ?: return
+        lastEmail = null
         if (!initialized) return
         try {
-            Crisp.setUserEmail("")
-            Crisp.setUserNickname("")
+            Crisp.resetChatSession(context)
         } catch (e: Exception) {
             AppLog.w(TAG, "Crisp 登出清理失败（已忽略）: ${sanitizeLog(e.message ?: "Unknown")}")
         }

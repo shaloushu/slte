@@ -69,6 +69,9 @@ val slteRemoteConfigUrls =
         ?.mapNotNull(::slteHttps)
         ?.joinToString(",") ?: ""
 
+// 登录页「官网」按钮的编译期默认值；远程配置 website_url 会覆盖（独立配置，只要求 https）
+val slteWebsiteUrl = slteValue("SLTE_WEBSITE_URL")?.let(::slteHttps) ?: ""
+
 val slteAllowedDomains =
     buildList {
         slteValue("SLTE_ALLOWED_DOMAINS")
@@ -122,6 +125,7 @@ android {
 
         buildConfigField("String", "CRISP_WEBSITE_ID", "\"$slteCrispWebsiteId\"")
         buildConfigField("boolean", "CRISP_ENABLED", "$slteCrispEnabled")
+        buildConfigField("String", "WEBSITE_URL", "\"$slteWebsiteUrl\"")
     }
 
     signingConfigs {

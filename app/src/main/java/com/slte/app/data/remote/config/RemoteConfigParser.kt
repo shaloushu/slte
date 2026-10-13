@@ -20,6 +20,7 @@ internal data class RemoteConfigDto(
     @SerialName("api_type") val apiType: String? = null,
     @SerialName("crisp_website_id") val crispWebsiteId: String? = null,
     @SerialName("crisp_enabled") val crispEnabled: Boolean? = null,
+    @SerialName("website_url") val websiteUrl: String? = null,
 
     @SerialName("config_version") val configVersion: String? = null,
     @SerialName("update_version") val updateVersion: String? = null,
@@ -65,6 +66,7 @@ internal object RemoteConfigParser {
             dto.crispWebsiteId?.trim()?.takeIf { it.isNotBlank() }
                 ?: BuildConfig.CRISP_WEBSITE_ID,
             crispEnabled = dto.crispEnabled ?: BuildConfig.CRISP_ENABLED,
+            websiteUrl = dto.websiteUrl?.trim()?.takeIf { it.isNotBlank() }?.let(::takeHttps) ?: BuildConfig.WEBSITE_URL,
             updateVersion = dto.updateVersion?.trim() ?: "",
             updateChangelogTitle = dto.updateChangelogTitle?.trim() ?: "",
             updateChangelog = dto.updateChangelog ?: "",
@@ -90,6 +92,14 @@ internal object RemoteConfigParser {
             return null
         }
         return candidate.trim()
+    }
+
+    /** 官网地址是独立配置项（不跟随 API、不走白名单），只要求 https。 */
+    private fun takeHttps(value: String): String? {
+        val candidate = value.trim()
+        if (ConfigValidation.isHttpsUrl(candidate)) return candidate
+        AppLog.w("SLTE-Config", "RemoteConfig: 官网地址被拒（须 https）: ${sanitizeLog(candidate)}")
+        return null
     }
 
     private fun resolveDirectDomains(element: JsonElement?): List<String> = buildList {

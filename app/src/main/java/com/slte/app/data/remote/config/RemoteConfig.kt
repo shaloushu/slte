@@ -37,6 +37,7 @@ data class RemoteConfigData(
     val apiType: String = BuildConfig.API_TYPE,
     val crispWebsiteId: String = BuildConfig.CRISP_WEBSITE_ID,
     val crispEnabled: Boolean = BuildConfig.CRISP_ENABLED,
+    val websiteUrl: String = BuildConfig.WEBSITE_URL,
 
     val updateVersion: String = "",
 

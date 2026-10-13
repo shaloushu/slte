@@ -26,6 +26,7 @@ SLTE 的配置分三层，按优先级从高到低：
 | `SLTE_ALLOWED_DOMAINS` | 空 | 追加 API 域名白名单（API 与配置源域名自动并入，一般无需填写） |
 | `SLTE_CRISP_WEBSITE_ID` | 空 | Crisp 客服 ID（远程配置会覆盖） |
 | `SLTE_CRISP_ENABLED` | `false` | 是否启用 Crisp 客服（远程配置会覆盖） |
+| `SLTE_WEBSITE_URL` | 空 | 官网地址，登录页「官网」按钮（独立配置；远程配置会覆盖） |
 | `SLTE_NOTIFICATION_TITLE` | 空 | 通知标题（空 = 跟随应用名） |
 | `SLTE_NOTIFICATION_TRAFFIC` | `true` | 通知是否显示实时流量/流速 |
 | `SLTE_RELEASE_STORE_FILE` | 空 | keystore 路径（发布签名，只编 debug 可留空） |
@@ -55,6 +56,7 @@ SLTE 的配置分三层，按优先级从高到低：
 | `api_type` | string | 否 | 后端类型；只认与构建期内置值一致的取值 |
 | `crisp_website_id` | string | 否 | Crisp 客服网站 ID（空 = 关闭客服） |
 | `crisp_enabled` | boolean | 否 | 是否启用 Crisp 客服 |
+| `website_url` | string | 否 | 官网地址（https，独立配置、不校验白名单）；缺失回退构建注入值，空则不显示官网按钮 |
 | `config_version` | string | 否 | 配置版本号（多源择优依据），建议填写如 `"1"` |
 | `update_version` | string | 否 | 新版本号；空 = 无更新 |
 | `update_changelog_title` | string | 否 | 更新弹窗标题（空回退本地文案） |
@@ -78,6 +80,7 @@ SLTE 的配置分三层，按优先级从高到低：
   "api_type": "xiaov2b",
   "crisp_website_id": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
   "crisp_enabled": true,
+  "website_url": "",
   "config_version": "1",
   "update_version": "",
   "update_changelog_title": "",
@@ -110,4 +113,4 @@ SLTE 的配置分三层，按优先级从高到低：
 - 仓库内只保留占位符（`https://api.example.com` / `example.com`），真实域名一律通过
   `app/gradle.properties` + 远程配置下发。
 - 远程配置中的 `api_base_url` / `update_apk_url` / `direct_domains` 均经过域名白名单校验，
-  非白名单域名会被拒绝。
+  非白名单域名会被拒绝；`website_url`（官网）为独立外链，只要求 https。

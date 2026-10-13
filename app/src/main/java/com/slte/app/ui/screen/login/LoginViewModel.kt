@@ -3,6 +3,7 @@ package com.slte.app.ui.screen.login
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.slte.app.R
+import com.slte.app.data.remote.config.RemoteConfig
 import com.slte.app.domain.model.RegisterConfig
 import com.slte.app.domain.model.SessionState
 import com.slte.app.domain.model.User
@@ -12,8 +13,11 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 sealed interface LoginUiState {
@@ -52,9 +56,16 @@ class LoginViewModel
 @Inject
 constructor(
     private val authRepository: AuthRepository,
+    private val remoteConfig: RemoteConfig,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow<LoginUiState>(LoginUiState.Form())
     val uiState: StateFlow<LoginUiState> = _uiState.asStateFlow()
+
+    /** 登录页「官网」按钮地址（远程配置优先，缺省回退编译期值）；为空时按钮隐藏。 */
+    val websiteUrl: StateFlow<String> =
+        remoteConfig.dataFlow
+            .map { it.websiteUrl }
+            .stateIn(viewModelScope, SharingStarted.Eagerly, remoteConfig.data.websiteUrl)
 
     private var loginJob: Job? = null
     private var registerConfigJob: Job? = null

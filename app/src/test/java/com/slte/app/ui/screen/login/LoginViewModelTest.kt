@@ -1,6 +1,8 @@
 package com.slte.app.ui.screen.login
 
 import com.slte.app.R
+import com.slte.app.data.remote.config.RemoteConfig
+import com.slte.app.data.remote.config.RemoteConfigData
 import com.slte.app.domain.model.RegisterConfig
 import com.slte.app.domain.model.SessionState
 import com.slte.app.domain.model.User
@@ -24,15 +26,26 @@ class LoginViewModelTest {
     val mainRule = MainDispatcherRule()
 
     private val authRepository = mockk<AuthRepository>(relaxed = true)
+    private val remoteConfig = mockk<RemoteConfig>(relaxed = true)
 
     private fun viewModel(
         savedEmail: String? = null,
         savedPassword: String? = null,
+        websiteUrl: String = "",
     ): LoginViewModel {
         every { authRepository.sessionState } returns MutableStateFlow(SessionState.LoggedOut)
         every { authRepository.savedEmail() } returns savedEmail
         every { authRepository.savedPassword() } returns savedPassword
-        return LoginViewModel(authRepository)
+        every { remoteConfig.data } returns RemoteConfigData(websiteUrl = websiteUrl)
+        every { remoteConfig.dataFlow } returns MutableStateFlow(RemoteConfigData(websiteUrl = websiteUrl))
+        return LoginViewModel(authRepository, remoteConfig)
+    }
+
+    @Test
+    fun `官网地址取远程配置值`() = runTest(mainRule.dispatcher) {
+        val vm = viewModel(websiteUrl = "https://www.example.com")
+
+        assertEquals("https://www.example.com", vm.websiteUrl.value)
     }
 
     @Test
