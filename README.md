@@ -42,27 +42,6 @@ SLTE_RELEASE_KEY_PASSWORD=<密码> \
 ./gradlew :app:assembleRelease
 ```
 
-## 本地检查（提交前自跑）
-
-本项目不使用 CI，检查在本机执行，改完代码请自跑对应项：
-
-```bash
-# 代码风格（三个源集：main/test/androidTest）
-./gradlew :app:ktlintCheck
-
-# 截图回归：与 src/test/snapshots/images 基线比对，界面改了就失败
-./gradlew :app:testDebugUnitTest --tests "*SlteComponentScreenshotTest*"
-
-# 视觉确实改了、要比对通过就更新基线（改动会出现在 git diff 里，可评审）
-./gradlew :app:recordRoborazziDebug
-
-# 全部单元测试
-./gradlew :app:testDebugUnitTest
-```
-
-> 截图回归默认走比对（`roborazzi.test.verify`，见 `gradle.properties`）：基线不一致即失败，
-> 不会被静默覆盖；`.editorconfig` 里的规则豁免逐条写明理由，新增豁免同样要写。
-
 ## 配置
 
 通过环境变量注入（默认值为占位符，请替换为自部署地址）：
