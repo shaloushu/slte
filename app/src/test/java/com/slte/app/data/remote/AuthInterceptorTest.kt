@@ -16,7 +16,9 @@ import okhttp3.Request
 import okhttp3.Response
 import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 
@@ -28,7 +30,7 @@ class AuthInterceptorTest {
     private val sessionStore = mockk<SessionStore>(relaxed = true)
     private val interceptor = AuthInterceptor(sessionStore)
 
-    private fun request(
+    fun request(
         url: String = "https://example.com${ApiPaths.AUTH}login",
         authorization: String? = null,
     ): Request {
@@ -37,23 +39,24 @@ class AuthInterceptorTest {
         return builder.build()
     }
 
-    private fun chain(
+    fun chain(
         request: Request,
         code: Int,
         body: String = "{}",
     ): Interceptor.Chain {
-        val response =
+        val chain = mockk<Interceptor.Chain>()
+        every { chain.request() } returns request
+        // 响应挂在实际发出的请求上（含注入的 Authorization），否则测试桩模拟不出凭据回传
+        every { chain.proceed(any()) } answers {
             Response
                 .Builder()
-                .request(request)
+                .request(firstArg())
                 .protocol(Protocol.HTTP_1_1)
                 .code(code)
                 .message("stub")
                 .body(body.toResponseBody())
                 .build()
-        val chain = mockk<Interceptor.Chain>()
-        every { chain.request() } returns request
-        every { chain.proceed(any()) } returns response
+        }
         return chain
     }
 
@@ -168,6 +171,84 @@ class AuthInterceptorTest {
         interceptor.intercept(chain)
 
         verify(exactly = 0) { sessionStore.clear() }
+    }
+
+    @Test
+    fun `订阅下载带本会话订阅token被拒时发出疑似事件`() = runTest(mainRule.dispatcher) {
+        every { sessionStore.getAuthData() } returns "token-a"
+        every { sessionStore.getSubscribeToken() } returns "sub-1"
+        val chain =
+            chain(
+                request(url = "https://example.com/api/v1/client/subscribe?token=sub-1"),
+                code = 403,
+                body = """{"message":"token is error"}""",
+            )
+        val suspect = AtomicReference(false)
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            interceptor.sessionSuspectEvents.collect { suspect.set(true) }
+        }
+
+        interceptor.intercept(chain)
+
+        assertTrue(suspect.get())
+        verify(exactly = 0) { sessionStore.clear() }
+    }
+
+    @Test
+    fun `订阅下载凭据头被拒时发出疑似事件`() = runTest(mainRule.dispatcher) {
+        every { sessionStore.getAuthData() } returns "token-a"
+        val chain =
+            chain(
+                request(url = "https://example.com/api/v1/client/subscribe", authorization = "token-a"),
+                code = 403,
+            )
+        val suspect = AtomicReference(false)
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            interceptor.sessionSuspectEvents.collect { suspect.set(true) }
+        }
+
+        interceptor.intercept(chain)
+
+        assertTrue(suspect.get())
+    }
+
+    @Test
+    fun `订阅下载未携带本会话凭据的403不发疑似事件`() = runTest(mainRule.dispatcher) {
+        // 自定义订阅域名不在白名单：不注入凭据，CDN/WAF 的 403 不应触发疑似失效
+        every { sessionStore.getAuthData() } returns "token-a"
+        every { sessionStore.getSubscribeToken() } returns "sub-1"
+        val chain =
+            chain(
+                request(url = "https://cdn.example.org/api/v1/client/subscribe?token=other"),
+                code = 403,
+            )
+        val suspect = AtomicReference(false)
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            interceptor.sessionSuspectEvents.collect { suspect.set(true) }
+        }
+
+        interceptor.intercept(chain)
+
+        assertFalse(suspect.get())
+    }
+
+    @Test
+    fun `非订阅路径的403不发疑似事件`() = runTest(mainRule.dispatcher) {
+        every { sessionStore.getAuthData() } returns "token-a"
+        val chain =
+            chain(
+                request(url = "https://example.com/api/v1/guest/comm/config"),
+                code = 403,
+                body = """{"message":"forbidden"}""",
+            )
+        val suspect = AtomicReference(false)
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            interceptor.sessionSuspectEvents.collect { suspect.set(true) }
+        }
+
+        interceptor.intercept(chain)
+
+        assertFalse(suspect.get())
     }
 
     @Test

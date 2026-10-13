@@ -2,6 +2,7 @@ package com.slte.app.data.remote.adapter.v2board
 
 import com.slte.app.data.remote.api.ApiHeaders
 import okhttp3.ResponseBody
+import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.Header
@@ -116,6 +117,10 @@ interface V2BoardUserRetrofit {
     suspend fun fetchSubscribeYaml(
         @Url url: String,
     ): ResponseBody
+
+    /** 会话探测：只取状态码，不解析 body；两个面板共用 user/info。 */
+    @GET("user/info")
+    suspend fun probeSession(): Response<ResponseBody>
 
     @POST("user/update")
     suspend fun updateUserSettings(

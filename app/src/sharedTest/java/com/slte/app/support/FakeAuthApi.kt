@@ -1,6 +1,7 @@
 package com.slte.app.support
 
 import com.slte.app.data.remote.api.AuthApi
+import com.slte.app.data.remote.api.SessionProbeResult
 import com.slte.app.data.remote.api.dto.CheckoutResultDto
 import com.slte.app.data.remote.api.dto.CouponCheckResultDto
 import com.slte.app.data.remote.api.dto.CreateOrderResultDto
@@ -44,6 +45,7 @@ open class FakeAuthApi : AuthApi {
     var withdrawMethods: List<String> = emptyList()
     var withdrawMethodsError: Throwable? = null
     var servers: List<ServerNode> = emptyList()
+    var probeResult: SessionProbeResult = SessionProbeResult.UNKNOWN
 
     override suspend fun checkCoupon(
         code: String,
@@ -169,6 +171,8 @@ open class FakeAuthApi : AuthApi {
     ): List<Notice> = unsupported()
 
     override suspend fun fetchSubscribeYaml(url: String): ResponseBody? = unsupported()
+
+    override suspend fun probeSession(): SessionProbeResult = probeResult
 
     private fun unsupported(): Nothing = throw UnsupportedOperationException("测试未配置该接口")
 }
