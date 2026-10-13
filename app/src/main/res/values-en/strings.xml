@@ -10,6 +10,8 @@
     <string name="login_button">Log in</string>
     <string name="login_remember_me">Remember me</string>
     <string name="login_forgot_password">Forgot password?</string>
+    <string name="login_website">Website</string>
+    <string name="login_support">Support</string>
 
     <!-- Register -->
     <string name="register_title">Create account</string>

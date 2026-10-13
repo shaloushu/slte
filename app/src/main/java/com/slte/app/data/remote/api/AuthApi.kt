@@ -111,4 +111,7 @@ interface AuthApi {
     suspend fun fetchServers(): List<ServerNode>
 
     suspend fun fetchSubscribeYaml(url: String): okhttp3.ResponseBody?
+
+    /** 探测当前凭据是否有效：401/403 返回 INVALID，网络异常与服务端故障返回 UNKNOWN。 */
+    suspend fun probeSession(): SessionProbeResult
 }

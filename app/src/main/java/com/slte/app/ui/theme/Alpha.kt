@@ -12,4 +12,5 @@ object SlteAlpha {
     val inviteCodeItemBg = 0.50f
     val loadingScrim = 0.30f
     val optionMenuScrim = 0.32f
+    val capsuleButtonBg = 0.80f
 }

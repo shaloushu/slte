@@ -8,6 +8,7 @@ import com.slte.app.data.remote.adapter.xiaov2b.XiaoV2bAuthApi
 import com.slte.app.data.remote.adapter.xiaov2b.XiaoV2bAuthRetrofit
 import com.slte.app.data.remote.adapter.xiaov2b.XiaoV2bUserPlanRetrofit
 import com.slte.app.data.remote.adapter.xiaov2b.XiaoV2bUserRetrofit
+import com.slte.app.data.remote.api.SessionProbeResult
 import com.slte.app.utils.Constants
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
@@ -47,14 +48,14 @@ class PanelRetrofitInheritanceTest {
         server.shutdown()
     }
 
-    private fun retrofit(): Retrofit = Retrofit
+    fun retrofit(): Retrofit = Retrofit
         .Builder()
         .baseUrl(server.url("/api/v1/"))
         .client(OkHttpClient.Builder().build())
         .addConverterFactory(json.asConverterFactory(Constants.JSON_MEDIA_TYPE))
         .build()
 
-    private fun jsonResponse(body: String) = MockResponse()
+    fun jsonResponse(body: String) = MockResponse()
         .setResponseCode(200)
         .setHeader("Content-Type", "application/json")
         .setBody(body)
@@ -118,6 +119,29 @@ class PanelRetrofitInheritanceTest {
 
         assertEquals("/api/v1/user/redeemgiftcard", server.takeRequest().path)
         assertEquals("/api/v1/user/gift-card/redeem", server.takeRequest().path)
+    }
+
+    @Test
+    fun `会话探测端点走共享 userinfo 路径并原样返回状态码`() {
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(403)
+                .setHeader("Content-Type", "application/json")
+                .setBody("""{"message":"未登录或登陆已过期"}"""),
+        )
+
+        val retrofit = retrofit()
+        val api =
+            XiaoV2bAuthApi(
+                authApi = retrofit.create(XiaoV2bAuthRetrofit::class.java),
+                userApi = retrofit.create(XiaoV2bUserRetrofit::class.java),
+                userPlanApi = retrofit.create(XiaoV2bUserPlanRetrofit::class.java),
+            )
+
+        val result = runBlocking { api.probeSession() }
+
+        assertEquals(SessionProbeResult.INVALID, result)
+        assertEquals("/api/v1/user/info", server.takeRequest().path)
     }
 
     @Test

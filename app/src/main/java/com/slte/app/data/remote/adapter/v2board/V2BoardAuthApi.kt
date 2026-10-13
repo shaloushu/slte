@@ -8,6 +8,7 @@ import com.slte.app.data.remote.adapter.orFalseLogged
 import com.slte.app.data.remote.adapter.orNullLogged
 import com.slte.app.data.remote.adapter.parseEmailWhitelistSuffixes
 import com.slte.app.data.remote.api.AuthApi
+import com.slte.app.data.remote.api.SessionProbeResult
 import com.slte.app.data.remote.api.dto.CheckoutResultDto
 import com.slte.app.data.remote.api.dto.CouponCheckResultDto
 import com.slte.app.data.remote.api.dto.CreateOrderResultDto
@@ -294,6 +295,22 @@ abstract class V2BoardAuthApi<U : V2BoardUserRetrofit>(
         val data = response.data.orNullLogged("fetchWithdrawMethods") ?: return emptyList()
         if (data.withdrawClose == 1) return emptyList()
         return data.withdrawMethods.orEmpty()
+    }
+
+    override suspend fun probeSession(): SessionProbeResult = try {
+        val response = userApi.probeSession()
+        // 不读 body，直接关闭释放连接（Retrofit 包装后 raw() 不可直接关闭）
+        (response.body() ?: response.errorBody())?.close()
+        when {
+            response.isSuccessful -> SessionProbeResult.VALID
+            response.code() == 401 || response.code() == 403 -> SessionProbeResult.INVALID
+            else -> SessionProbeResult.UNKNOWN
+        }
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        AppLog.w("SLTE-Api", "probeSession 请求异常，按未知处理: ${sanitizeLog(e.javaClass.simpleName)}")
+        SessionProbeResult.UNKNOWN
     }
 
     override suspend fun fetchServers(): List<ServerNode> = fetchServerNodes()

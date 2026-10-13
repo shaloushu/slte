@@ -56,7 +56,9 @@ fun SlteApp(
                     onSupport = { viewModel.supportChat.openChat(context, loggedIn.user.email) },
                 )
             }
-            is SessionState.LoggedOut -> AuthNavGraph()
+            is SessionState.LoggedOut -> AuthNavGraph(
+                onSupport = { viewModel.supportChat.openChat(context, null) },
+            )
             is SessionState.Loading -> {
                 Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background))
             }

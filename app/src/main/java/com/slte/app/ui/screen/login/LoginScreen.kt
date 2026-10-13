@@ -1,6 +1,10 @@
 package com.slte.app.ui.screen.login
 
+import android.content.Context
+import android.content.Intent
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -9,6 +13,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
@@ -24,35 +29,48 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.core.net.toUri
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.slte.app.BuildConfig
 import com.slte.app.R
 import com.slte.app.ui.component.AnimatedSticker
 import com.slte.app.ui.component.LoadingOverlay
 import com.slte.app.ui.component.SlteButton
 import com.slte.app.ui.component.SlteButtonStyle
+import com.slte.app.ui.component.SlteCapsuleButton
 import com.slte.app.ui.component.SlteInput
 import com.slte.app.ui.component.SltePasswordInput
 import com.slte.app.ui.component.ToastTip
+import com.slte.app.ui.component.rememberToast
 import com.slte.app.ui.theme.SlteIcons
 import com.slte.app.ui.theme.SlteType
 import com.slte.app.utils.Dimens
+import com.slte.app.utils.LogExportResult
 import com.slte.app.utils.Stickers
+import com.slte.app.utils.exportAndShareLog
+import kotlinx.coroutines.withTimeoutOrNull
 
 @Composable
 fun LoginScreen(
     onForgotPassword: () -> Unit = {},
     onCreateAccount: (emailVerify: Boolean, inviteForce: Boolean) -> Unit = { _, _ -> },
+    onSupport: () -> Unit = {},
     viewModel: LoginViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val websiteUrl by viewModel.websiteUrl.collectAsStateWithLifecycle()
     val haptic = LocalHapticFeedback.current
+    val context = LocalContext.current
+    val toast = rememberToast()
 
     val form =
         when (val s = state) {
@@ -86,15 +104,16 @@ fun LoginScreen(
         modifier =
         Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .padding(
-                horizontal = Dimens.gap.xxl,
-                vertical = Dimens.gap.xxl,
-            ),
-        contentAlignment = Alignment.TopCenter,
+            .background(MaterialTheme.colorScheme.background),
     ) {
         Column(
-            modifier = Modifier.widthIn(max = Dimens.maxContentWidth),
+            modifier =
+            Modifier
+                .align(Alignment.TopCenter)
+                .padding(
+                    horizontal = Dimens.gap.xxl,
+                    vertical = Dimens.gap.xxl,
+                ).widthIn(max = Dimens.maxContentWidth),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Spacer(modifier = Modifier.height(Dimens.gap.xxl))
@@ -178,6 +197,28 @@ fun LoginScreen(
                 enabled = !isCheckingRegisterConfig,
             )
         }
+
+        LoginFooter(
+            websiteUrl = websiteUrl,
+            onWebsite = { openWebsite(context, websiteUrl) },
+            onSupport = onSupport,
+            onExportLog = {
+                when (exportAndShareLog(context)) {
+                    LogExportResult.SUCCESS -> toast.show(R.string.about_log_exported)
+                    LogExportResult.EXPORT_FAILED -> toast.show(R.string.about_log_export_failed)
+                    LogExportResult.SHARE_FAILED -> toast.show(R.string.about_log_share_failed)
+                }
+            },
+            modifier =
+            Modifier
+                .align(Alignment.BottomCenter)
+                .navigationBarsPadding()
+                .padding(
+                    start = Dimens.gap.xxl,
+                    end = Dimens.gap.xxl,
+                    bottom = Dimens.gap.lg,
+                ),
+        )
     }
 
     LoadingOverlay(
@@ -230,5 +271,88 @@ internal fun RememberMeRow(
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+    }
+}
+
+/** 登录页底部：官网/客服胶囊按钮在上，版本号在下（纯文本，长按 6 秒导出日志）。 */
+@Composable
+internal fun LoginFooter(
+    websiteUrl: String,
+    onWebsite: () -> Unit,
+    onSupport: () -> Unit,
+    onExportLog: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val haptic = LocalHapticFeedback.current
+    Column(
+        modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Dimens.gap.md),
+        ) {
+            if (websiteUrl.isNotBlank()) {
+                SlteCapsuleButton(
+                    text = stringResource(R.string.login_website),
+                    onClick = onWebsite,
+                )
+            }
+            SlteCapsuleButton(
+                text = stringResource(R.string.login_support),
+                onClick = onSupport,
+            )
+        }
+        Spacer(modifier = Modifier.height(Dimens.gap.xl))
+        Text(
+            text = BuildConfig.VERSION_NAME,
+            style = SlteType.caption,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier =
+            Modifier.holdGesture(
+                holdMillis = LOG_EXPORT_HOLD_MS,
+                onPressStart = { haptic.performHapticFeedback(HapticFeedbackType.LongPress) },
+                onHoldComplete = {
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    onExportLog()
+                },
+            ),
+        )
+    }
+}
+
+private const val LOG_EXPORT_HOLD_MS = 6_000L
+
+/**
+ * 按住 [holdMillis] 后触发，按下即触觉反馈。
+ * 不用 detectTapGestures：滑出控件边界会取消按压，而版本号文本很小，真机上等于没反应。
+ */
+private fun Modifier.holdGesture(
+    holdMillis: Long,
+    onPressStart: () -> Unit,
+    onHoldComplete: () -> Unit,
+): Modifier = pointerInput(holdMillis) {
+    awaitEachGesture {
+        awaitFirstDown(requireUnconsumed = false).consume()
+        onPressStart()
+        val released =
+            withTimeoutOrNull(holdMillis) {
+                var up = false
+                while (!up) {
+                    up = awaitPointerEvent().changes.all { !it.pressed }
+                }
+                true
+            }
+        if (released == null) onHoldComplete()
+    }
+}
+
+private fun openWebsite(
+    context: Context,
+    url: String,
+) {
+    val uri = url.toUri()
+    if (uri.scheme == "https" || uri.scheme == "http") {
+        runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, uri)) }
     }
 }
