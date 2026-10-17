@@ -8,6 +8,7 @@ import com.github.kr328.clash.service.StatusProvider
 import com.github.kr328.clash.service.data.ImportedDao
 import com.github.kr328.clash.service.data.SelectionDao
 import com.github.kr328.clash.service.store.ServiceStore
+import com.github.kr328.clash.service.util.AtomicFs
 import com.github.kr328.clash.service.util.importedDir
 import com.github.kr328.clash.service.util.sendProfileLoaded
 import java.util.*
@@ -25,6 +26,8 @@ class ConfigurationModule(
     private val reload = Channel<Unit>(Channel.CONFLATED)
 
     override suspend fun run() {
+        AtomicFs.recover(service.importedDir)
+
         val broadcasts = receiveBroadcast {
             addAction(Intents.ACTION_PROFILE_CHANGED)
             addAction(Intents.ACTION_OVERRIDE_CHANGED)

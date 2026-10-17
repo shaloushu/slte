@@ -6,7 +6,9 @@ import com.github.kr328.clash.service.remote.IClashManager
 import com.github.kr328.clash.service.remote.IProfileManager
 import com.github.kr328.clash.service.remote.IRemoteService
 import com.github.kr328.clash.service.remote.wrap
+import com.github.kr328.clash.service.util.AtomicFs
 import com.github.kr328.clash.service.util.cancelAndJoinBlockingAsync
+import com.github.kr328.clash.service.util.importedDir
 import kotlinx.coroutines.CoroutineScope
 
 class RemoteService :
@@ -21,6 +23,8 @@ class RemoteService :
 
     override fun onCreate() {
         super.onCreate()
+
+        AtomicFs.recover(importedDir)
 
         clash = ClashManager(this)
         profile = ProfileManager(this)
