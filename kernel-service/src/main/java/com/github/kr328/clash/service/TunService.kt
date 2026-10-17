@@ -23,7 +23,7 @@ import kotlinx.coroutines.selects.select
 
 class TunService :
     VpnService(),
-    CoroutineScope by CoroutineScope(Dispatchers.Default) {
+    CoroutineScope by CoroutineScope(SupervisorJob() + Dispatchers.Default) {
     private val self: TunService
         get() = this
 
@@ -32,12 +32,14 @@ class TunService :
     /** 运行时循环：Restart 用于切换 TUN 堆栈模式时原地重建 */
     private enum class RuntimeAction { Continue, Quit, Restart }
 
-    private val runtime = clashRuntime {
+    private val runtime = clashRuntime(
+        onCriticalFailure = { reason = it },
+    ) {
         val store = ServiceStore(self)
 
         val close = install(CloseModule(self))
-        val tun = install(TunModule(self))
-        val config = install(ConfigurationModule(self))
+        val tun = install(TunModule(self), critical = true)
+        val config = install(ConfigurationModule(self), critical = true)
         val network = install(NetworkObserveModule(self))
         val restart = install(TunRestartModule(self))
 
@@ -88,10 +90,12 @@ class TunService :
                     }
                 }
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e("Create clash runtime: ${e.message}", e)
 
-            reason = e.message
+            reason = reason ?: e.message
         } finally {
             withContext(NonCancellable) {
                 tun.close()

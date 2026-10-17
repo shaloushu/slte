@@ -70,6 +70,8 @@ abstract class Module<E>(val service: Service) {
                     service.unregisterReceiver(it)
                 }
 
+                events.close()
+
                 Log.d("$moduleName: destroyed")
             }
         }

@@ -10,7 +10,10 @@ import kotlinx.coroutines.sync.withLock
 private val globalLock = Mutex()
 
 interface ClashRuntimeScope {
-    fun <E, T : Module<E>> install(module: T): T
+    fun <E, T : Module<E>> install(
+        module: T,
+        critical: Boolean = false,
+    ): T
 }
 
 interface ClashRuntime {
@@ -18,25 +21,40 @@ interface ClashRuntime {
     fun requestGc()
 }
 
-fun CoroutineScope.clashRuntime(block: suspend ClashRuntimeScope.() -> Unit): ClashRuntime {
+fun CoroutineScope.clashRuntime(
+    onCriticalFailure: (String) -> Unit = {},
+    block: suspend ClashRuntimeScope.() -> Unit,
+): ClashRuntime {
     return object : ClashRuntime {
         override fun launch() {
-            launch(Dispatchers.IO) {
+            // SupervisorJob：单个模块失败不再连坐整个 runtime；关键模块失败由 install 显式停机
+            launch(Dispatchers.IO + SupervisorJob()) {
+                val runtimeScope = this
                 globalLock.withLock {
                     Log.d("ClashRuntime: initialize")
 
                     try {
-                        val modules = mutableListOf<Module<*>>()
-
                         Clash.reset()
                         Clash.clearOverride(Clash.OverrideSlot.Session)
 
                         val scope = object : ClashRuntimeScope {
-                            override fun <E, T : Module<E>> install(module: T): T {
+                            override fun <E, T : Module<E>> install(
+                                module: T,
+                                critical: Boolean,
+                            ): T {
                                 launch {
-                                    modules.add(module)
-
-                                    module.execute()
+                                    try {
+                                        module.execute()
+                                    } catch (e: CancellationException) {
+                                        throw e
+                                    } catch (e: Exception) {
+                                        val message = "${module.javaClass.simpleName}: ${e.message ?: e.javaClass.simpleName}"
+                                        Log.e(message, e)
+                                        if (critical) {
+                                            onCriticalFailure(message)
+                                            runtimeScope.cancel()
+                                        }
+                                    }
                                 }
 
                                 return module
