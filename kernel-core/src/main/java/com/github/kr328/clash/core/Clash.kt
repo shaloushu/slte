@@ -70,26 +70,24 @@ object Clash {
         dns: String,
         markSocket: (Int) -> Boolean,
         querySocketUid: (protocol: Int, source: InetSocketAddress, target: InetSocketAddress) -> Int,
-    ) {
-        Bridge.nativeStartTun(
-            fd,
-            stack,
-            gateway,
-            portal,
-            dns,
-            object : TunInterface {
-                override fun markSocket(fd: Int) {
-                    markSocket(fd)
-                }
+    ): Int = Bridge.nativeStartTun(
+        fd,
+        stack,
+        gateway,
+        portal,
+        dns,
+        object : TunInterface {
+            override fun markSocket(fd: Int) {
+                markSocket(fd)
+            }
 
-                override fun querySocketUid(protocol: Int, source: String, target: String): Int = querySocketUid(
-                    protocol,
-                    parseInetSocketAddress(source),
-                    parseInetSocketAddress(target),
-                )
-            },
-        )
-    }
+            override fun querySocketUid(protocol: Int, source: String, target: String): Int = querySocketUid(
+                protocol,
+                parseInetSocketAddress(source),
+                parseInetSocketAddress(target),
+            )
+        },
+    )
 
     fun stopTun() {
         Bridge.nativeStopTun()

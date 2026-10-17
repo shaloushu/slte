@@ -59,7 +59,7 @@ class TunModule(private val vpn: VpnService) : Module<Unit>(vpn) {
 
     fun attach(device: TunDevice) {
         try {
-            Clash.startTun(
+            val result = Clash.startTun(
                 fd = device.fd,
                 stack = device.stack,
                 gateway = device.gateway,
@@ -68,6 +68,9 @@ class TunModule(private val vpn: VpnService) : Module<Unit>(vpn) {
                 markSocket = vpn::protect,
                 querySocketUid = this::queryUid,
             )
+            if (result != 0) {
+                throw IllegalStateException("startTun failed: $result")
+            }
         } catch (e: Exception) {
             runCatching { ParcelFileDescriptor.adoptFd(device.fd).close() }
             throw e
