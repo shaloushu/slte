@@ -16,6 +16,9 @@ jobs:
   check:
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    env:
+      # GitHub runner 在海外，阿里云镜像会拖慢甚至阻断插件解析
+      SLTE_USE_MIRROR: "false"
     steps:
       - uses: actions/checkout@v4
 
