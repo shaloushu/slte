@@ -15,7 +15,10 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.selects.select
 
-class ConfigurationModule(service: Service) : Module<ConfigurationModule.LoadException>(service) {
+class ConfigurationModule(
+    service: Service,
+    private val onLoaded: () -> Unit = {},
+) : Module<ConfigurationModule.LoadException>(service) {
     data class LoadException(val message: String)
 
     private val store = ServiceStore(service)
@@ -86,6 +89,7 @@ class ConfigurationModule(service: Service) : Module<ConfigurationModule.LoadExc
                     StatusProvider.currentProfile = active.name
 
                     service.sendProfileLoaded(current)
+                    onLoaded()
 
                     Log.d("ConfigurationModule: reload done")
                     Log.d("Profile ${active.name} loaded")

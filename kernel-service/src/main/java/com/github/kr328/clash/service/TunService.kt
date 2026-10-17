@@ -27,19 +27,26 @@ class TunService :
     private val self: TunService
         get() = this
 
+    @Volatile
     private var reason: String? = null
+
+    @Volatile
+    private var startedBroadcast = false
 
     /** 运行时循环：Restart 用于切换 TUN 堆栈模式时原地重建 */
     private enum class RuntimeAction { Continue, Quit, Restart }
 
     private val runtime = clashRuntime(
-        onCriticalFailure = { reason = it },
+        onCriticalFailure = {
+            reason = it
+            KernelState.failed(it)
+        },
     ) {
         val store = ServiceStore(self)
 
         val close = install(CloseModule(self))
         val tun = install(TunModule(self), critical = true)
-        val config = install(ConfigurationModule(self), critical = true)
+        val config = install(ConfigurationModule(self) { onProfileLoaded() }, critical = true)
         val network = install(NetworkObserveModule(self))
         val restart = install(TunRestartModule(self))
 
@@ -64,6 +71,7 @@ class TunService :
                     }
                     config.onEvent {
                         reason = it.message
+                        KernelState.failed(it.message)
 
                         RuntimeAction.Quit
                     }
@@ -85,6 +93,7 @@ class TunService :
                     RuntimeAction.Restart -> {
                         Log.i("Restart tun with stack: ${store.tunStackMode}")
                         // 同步停掉旧 TUN（原生调用不挂起，避免与新 TUN 竞争），再按新堆栈重建
+                        KernelState.restartingTun()
                         TunModule.requestStop()
                         tun.open()
                     }
@@ -114,26 +123,29 @@ class TunService :
 
         StatusProvider.serviceRunning = true
 
+        KernelState.starting()
+        startedBroadcast = false
+
         StaticNotificationModule.createNotificationChannel(this)
         StaticNotificationModule.notifyLoadingNotification(this)
 
         runtime.launch()
     }
 
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        sendClashStarted()
-
-        return super.onStartCommand(intent, flags, startId)
-    }
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = super.onStartCommand(intent, flags, startId)
 
     override fun onDestroy() {
         TunModule.requestStop()
 
         StatusProvider.serviceRunning = false
 
-        sendClashStopped(reason)
+        KernelState.stopping()
 
         cancelAndJoinBlockingAsync(this)
+
+        KernelState.destroyed(reason)
+
+        sendClashStopped(reason)
 
         Log.i("TunService destroyed: ${reason ?: "successfully"}")
 
@@ -241,6 +253,26 @@ class TunService :
         }
 
         attach(device)
+        onTunAttached()
+    }
+
+    private fun onTunAttached() {
+        KernelState.tunAttached()
+        broadcastStartedIfRunning()
+    }
+
+    private fun onProfileLoaded() {
+        KernelState.profileLoaded()
+        broadcastStartedIfRunning()
+    }
+
+    @Synchronized
+    private fun broadcastStartedIfRunning() {
+        if (!startedBroadcast && KernelState.isRunning()) {
+            startedBroadcast = true
+
+            sendClashStarted()
+        }
     }
 
     @TargetApi(22)
