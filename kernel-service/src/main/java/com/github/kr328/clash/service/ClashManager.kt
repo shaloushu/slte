@@ -98,6 +98,7 @@ class ClashManager(private val context: Context) :
                                 observer.newItem(c.receive())
                             }
                         } catch (e: CancellationException) {
+                            throw e
                         } catch (e: Exception) {
                             Log.w("UI crashed", e)
                         } finally {
