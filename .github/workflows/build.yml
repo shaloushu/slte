@@ -38,7 +38,7 @@ on:
         required: false
         default: ''
       websiteUrl:
-        description: 官网地址（https，留空则使用远程配置）
+        description: 官网地址（https；远程优先，失效回退）
         required: false
         default: ''
       crispWebsiteId:
