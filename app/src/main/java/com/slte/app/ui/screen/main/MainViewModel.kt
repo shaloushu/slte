@@ -85,12 +85,18 @@ constructor(
 
     private fun handleVpnStatus(status: KernelVpnStatus) {
         val connected = status.state == KernelVpnState.RUNNING
+        val timeoutActive = connectTimeoutJob?.isActive == true
         val connecting =
             status.state == KernelVpnState.STARTING ||
-                status.state == KernelVpnState.STOPPING
+                status.state == KernelVpnState.STOPPING ||
+                (status.state == KernelVpnState.STOPPED && timeoutActive)
         val wasConnected = _data.value.isConnected
 
-        if (status.state != KernelVpnState.STARTING) {
+        // STOPPED 可能只是绑定同步到的旧状态；连接超时仍在跑时保持"连接中"
+        if (status.state == KernelVpnState.RUNNING ||
+            status.state == KernelVpnState.FAILED ||
+            (status.state == KernelVpnState.STOPPED && !timeoutActive)
+        ) {
             connectTimeoutJob?.cancel()
             connectTimeoutJob = null
         }
@@ -108,7 +114,7 @@ constructor(
                         errorMessageRes = R.string.error_vpn_kernel_unavailable,
                     )
                 KernelVpnState.STOPPED ->
-                    state.copy(isConnected = false, isConnecting = false)
+                    state.copy(isConnected = false, isConnecting = connecting)
             }
         }
 
