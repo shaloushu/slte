@@ -64,6 +64,16 @@ class GeoInstallerTest {
     }
 
     @Test
+    fun `只清理自己的临时文件`() {
+        val dir = temp.newFolder()
+        val unrelated = File(dir, "other.tmp").apply { writeText("keep") }
+
+        GeoInstaller.install(dir, 1L, entries("geoip.metadb" to "geo"))
+
+        assertEquals("keep", unrelated.readText())
+    }
+
+    @Test
     fun `文件被截断后按大小失配重新解包`() {
         val dir = temp.newFolder()
         GeoInstaller.install(dir, 1L, entries("geoip.metadb" to "complete"))

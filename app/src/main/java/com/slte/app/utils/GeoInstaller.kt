@@ -23,7 +23,7 @@ object GeoInstaller {
         entries: Map<String, () -> InputStream>,
     ) {
         directory.mkdirs()
-        deleteTempFiles(directory)
+        deleteTempFiles(directory, entries.keys)
 
         if (isUpToDate(directory, version, entries.keys)) return
 
@@ -104,10 +104,13 @@ object GeoInstaller {
         return version to sizes
     }
 
-    private fun deleteTempFiles(directory: File) {
-        directory
-            .listFiles { file -> file.isFile && file.name.endsWith(".tmp") }
-            ?.forEach { it.delete() }
+    private fun deleteTempFiles(
+        directory: File,
+        names: Collection<String>,
+    ) {
+        (names.map { "$it.tmp" } + "$MARKER.tmp").forEach { name ->
+            File(directory, name).delete()
+        }
     }
 
     private fun moveAtomic(
