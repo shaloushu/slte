@@ -192,12 +192,14 @@ object Clash {
 
     fun subscribeLogcat(): ReceiveChannel<LogMessage> = Channel<LogMessage>(32).apply {
         Bridge.nativeSubscribeLogcat(object : LogcatInterface {
-            override fun received(jsonPayload: String) {
-                // 单条畸形日志解析失败只丢弃该条：向 C 侧报错会让内核退订，
-                // 日志流从此静默（直到 UI 重订阅）
-                runCatching {
+            override fun received(jsonPayload: String): Boolean {
+                // 单条畸形日志解析失败只丢弃该条，不结束订阅
+                val message = runCatching {
                     Json.decodeFromString(LogMessage.serializer(), jsonPayload)
-                }.onSuccess { trySend(it) }
+                }.getOrNull() ?: return false
+
+                // 通道已关闭说明消费者已退订；通道满只丢弃该条，保持订阅
+                return trySend(message).isClosed
             }
         })
     }
