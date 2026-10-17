@@ -12,6 +12,19 @@ enum class KernelBindingState {
     FAILED,
 }
 
+enum class KernelVpnState {
+    STOPPED,
+    STARTING,
+    RUNNING,
+    STOPPING,
+    FAILED,
+}
+
+data class KernelVpnStatus(
+    val state: KernelVpnState = KernelVpnState.STOPPED,
+    val reason: String? = null,
+)
+
 /** App-side port for kernel service lifecycle and Binder access. */
 interface KernelBridge {
     /** True only while the remote Binder endpoint is usable. */
@@ -19,6 +32,7 @@ interface KernelBridge {
 
     /** VPN state is distinct from Binder/service binding state. */
     val vpnConnected: StateFlow<Boolean>
+    val vpnStatus: StateFlow<KernelVpnStatus>
     val profileLoaded: StateFlow<Int>
 
     fun bind()

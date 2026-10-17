@@ -16,12 +16,13 @@ import java.io.FileNotFoundException
 import java.util.*
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 class ProfileManager(private val context: Context) :
     IProfileManager,
-    CoroutineScope by CoroutineScope(Dispatchers.IO) {
+    CoroutineScope by CoroutineScope(SupervisorJob() + Dispatchers.IO) {
     private val store = ServiceStore(context)
 
     init {

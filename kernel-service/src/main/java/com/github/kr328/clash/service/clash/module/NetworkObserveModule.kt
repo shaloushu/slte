@@ -16,7 +16,7 @@ import kotlinx.coroutines.withContext
 
 class NetworkObserveModule(service: Service) : Module<Network>(service) {
     private val connectivity = service.getSystemService<ConnectivityManager>()!!
-    private val networks: Channel<Network> = Channel(Channel.UNLIMITED)
+    private val networks: Channel<Network> = Channel(Channel.CONFLATED)
     private val request = NetworkRequest.Builder().apply {
         addCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN)
         addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
@@ -148,6 +148,8 @@ class NetworkObserveModule(service: Service) : Module<Network>(service) {
         } finally {
             withContext(NonCancellable) {
                 unregister()
+
+                networks.close()
 
                 Log.i("NetworkObserve dns = []")
                 Clash.notifyDnsChanged(emptyList())

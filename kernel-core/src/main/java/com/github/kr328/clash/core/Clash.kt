@@ -70,26 +70,24 @@ object Clash {
         dns: String,
         markSocket: (Int) -> Boolean,
         querySocketUid: (protocol: Int, source: InetSocketAddress, target: InetSocketAddress) -> Int,
-    ) {
-        Bridge.nativeStartTun(
-            fd,
-            stack,
-            gateway,
-            portal,
-            dns,
-            object : TunInterface {
-                override fun markSocket(fd: Int) {
-                    markSocket(fd)
-                }
+    ): Int = Bridge.nativeStartTun(
+        fd,
+        stack,
+        gateway,
+        portal,
+        dns,
+        object : TunInterface {
+            override fun markSocket(fd: Int) {
+                markSocket(fd)
+            }
 
-                override fun querySocketUid(protocol: Int, source: String, target: String): Int = querySocketUid(
-                    protocol,
-                    parseInetSocketAddress(source),
-                    parseInetSocketAddress(target),
-                )
-            },
-        )
-    }
+            override fun querySocketUid(protocol: Int, source: String, target: String): Int = querySocketUid(
+                protocol,
+                parseInetSocketAddress(source),
+                parseInetSocketAddress(target),
+            )
+        },
+    )
 
     fun stopTun() {
         Bridge.nativeStopTun()
@@ -192,12 +190,14 @@ object Clash {
 
     fun subscribeLogcat(): ReceiveChannel<LogMessage> = Channel<LogMessage>(32).apply {
         Bridge.nativeSubscribeLogcat(object : LogcatInterface {
-            override fun received(jsonPayload: String) {
-                // 单条畸形日志解析失败只丢弃该条：向 C 侧报错会让内核退订，
-                // 日志流从此静默（直到 UI 重订阅）
-                runCatching {
+            override fun received(jsonPayload: String): Boolean {
+                // 畸形日志仅丢弃当前条。
+                val message = runCatching {
                     Json.decodeFromString(LogMessage.serializer(), jsonPayload)
-                }.onSuccess { trySend(it) }
+                }.getOrNull() ?: return false
+
+                // 通道关闭表示已退订；通道满仅丢弃当前条。
+                return trySend(message).isClosed
             }
         })
     }

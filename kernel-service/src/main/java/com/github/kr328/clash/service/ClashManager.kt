@@ -20,7 +20,7 @@ import kotlinx.coroutines.channels.ReceiveChannel
 
 class ClashManager(private val context: Context) :
     IClashManager,
-    CoroutineScope by CoroutineScope(Dispatchers.IO) {
+    CoroutineScope by CoroutineScope(SupervisorJob() + Dispatchers.IO) {
     private val store = ServiceStore(context)
     private var logReceiver: ReceiveChannel<LogMessage>? = null
 
@@ -98,6 +98,7 @@ class ClashManager(private val context: Context) :
                                 observer.newItem(c.receive())
                             }
                         } catch (e: CancellationException) {
+                            throw e
                         } catch (e: Exception) {
                             Log.w("UI crashed", e)
                         } finally {

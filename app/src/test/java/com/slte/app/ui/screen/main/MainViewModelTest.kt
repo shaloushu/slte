@@ -5,6 +5,8 @@ import com.slte.app.domain.repository.DnsCache
 import com.slte.app.kernel.KernelConfig
 import com.slte.app.kernel.KernelManager
 import com.slte.app.kernel.KernelProxy
+import com.slte.app.kernel.KernelVpnState
+import com.slte.app.kernel.KernelVpnStatus
 import com.slte.app.support.MainDispatcherRule
 import com.slte.app.support.stubKernelBridge
 import io.mockk.coEvery
@@ -39,6 +41,10 @@ class MainViewModelTest {
     ): MainViewModel {
         kernelProxy.stubKernelBridge()
         every { kernelManager.vpnConnected } returns MutableStateFlow(connected)
+        every { kernelManager.vpnStatus } returns
+            MutableStateFlow(
+                if (connected) KernelVpnStatus(KernelVpnState.RUNNING) else KernelVpnStatus(),
+            )
         every { kernelManager.profileLoaded } returns MutableStateFlow(0)
         every { dataWriter.applyCached(any()) } answers {
             firstArg<MutableStateFlow<DashboardData>>().value =
@@ -125,8 +131,9 @@ class MainViewModelTest {
     @Test
     fun `内核连接状态同步到首页并清空 DNS 缓存`() = runTest(mainRule.dispatcher) {
         kernelProxy.stubKernelBridge()
-        val connected = MutableStateFlow(false)
-        every { kernelManager.vpnConnected } returns connected
+        val status = MutableStateFlow(KernelVpnStatus())
+        every { kernelManager.vpnConnected } returns MutableStateFlow(false)
+        every { kernelManager.vpnStatus } returns status
         every { kernelManager.profileLoaded } returns MutableStateFlow(0)
         val vm =
             MainViewModel(
@@ -140,7 +147,7 @@ class MainViewModelTest {
             )
         advanceUntilIdle()
 
-        connected.value = true
+        status.value = KernelVpnStatus(KernelVpnState.RUNNING)
         advanceUntilIdle()
 
         verify { dnsCache.clear() }

@@ -18,6 +18,12 @@ class StatusProvider : ContentProvider() {
                     null
                 }
             }
+            METHOD_KERNEL_STATE -> {
+                return Bundle().apply {
+                    putString(KEY_STATE, KernelState.state.name)
+                    putString(KEY_REASON, KernelState.reason)
+                }
+            }
             else -> super.call(method, arg, extras)
         }
     }
@@ -47,6 +53,9 @@ class StatusProvider : ContentProvider() {
 
     companion object {
         const val METHOD_CURRENT_PROFILE = "currentProfile"
+        const val METHOD_KERNEL_STATE = "kernelState"
+        const val KEY_STATE = "state"
+        const val KEY_REASON = "reason"
 
         var serviceRunning: Boolean = false
         var currentProfile: String? = null

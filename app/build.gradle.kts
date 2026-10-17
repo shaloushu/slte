@@ -156,7 +156,14 @@ android {
             } else {
 
                 gradle.taskGraph.whenReady {
-                    if (allTasks.any { it.name.contains("Release") }) {
+                    val releasePackaging =
+                        allTasks.any { task ->
+                            task.name == "packageRelease" ||
+                                task.name.startsWith("assembleRelease") ||
+                                task.name.startsWith("bundleRelease") ||
+                                task.name.startsWith("installRelease")
+                        }
+                    if (releasePackaging) {
                         throw GradleException(
                             "release 构建必须设置 SLTE_RELEASE_STORE_FILE/PASSWORD/KEY_ALIAS/KEY_PASSWORD，" +
                                 "禁止使用 debug 签名发布（本地调试请用 assembleDebug）",

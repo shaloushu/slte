@@ -48,11 +48,12 @@ constructor(
         data: MutableStateFlow<DashboardData>,
         scope: CoroutineScope,
     ) {
-        if (!tryAcquireUpdateSlot()) return
+        // 手动刷新排队，避免被静默更新丢弃。
+        data.update { it.copy(isUpdating = true) }
         try {
-            if (!data.value.hasPlan) return
-            data.update { it.copy(isUpdating = true) }
-            try {
+            updateMutex.withLock {
+                if (!data.value.hasPlan) return
+
                 subscribeRepository.fetchSubscribeInfo(force = true).fold(
                     onSuccess = {
                         val kernelResult = updateProfileWithFreshLink()
@@ -77,16 +78,13 @@ constructor(
                     onFailure = { e ->
                         val resId =
                             ErrorMessages.forSubscribe(e)
-                        data.update { it.copy(isUpdating = false, errorMessageRes = resId) }
+                        data.update { it.copy(errorMessageRes = resId) }
                     },
                 )
-            } finally {
-                // 协程被取消时 runApi 会重抛 CancellationException，onSuccess/onFailure 都不执行，
-                // 这里兜底复位，避免"更新中"遮罩永久留在界面上。
-                data.update { it.copy(isUpdating = false) }
             }
         } finally {
-            updateMutex.unlock()
+            // 取消时也复位，避免“更新中”遮罩残留。
+            data.update { it.copy(isUpdating = false) }
         }
     }
 

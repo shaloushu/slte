@@ -3,13 +3,13 @@ package com.github.kr328.clash.service
 import android.content.Context
 import android.net.Uri
 import com.github.kr328.clash.core.Clash
-import com.github.kr328.clash.core.model.FetchStatus
 import com.github.kr328.clash.service.data.Imported
 import com.github.kr328.clash.service.data.ImportedDao
 import com.github.kr328.clash.service.data.Pending
 import com.github.kr328.clash.service.data.PendingDao
 import com.github.kr328.clash.service.model.Profile
 import com.github.kr328.clash.service.store.ServiceStore
+import com.github.kr328.clash.service.util.AtomicFs
 import com.github.kr328.clash.service.util.importedDir
 import com.github.kr328.clash.service.util.pendingDir
 import com.github.kr328.clash.service.util.processingDir
@@ -45,34 +45,36 @@ object ProfileProcessor {
 
                 Clash.setAgeSecretKey(snapshot.ageSecretKey?.takeIf { it.isNotBlank() })
 
-                val force = snapshot.type != Profile.Type.File
-                // App 端已预下载清洗 YAML（pending 目录已有 config.yaml）时跳过抓取：
-                // source 列不含订阅 token（明文数据库不落 token），无法也不应再走内核抓取
-                val subscriptionInfo = if (force && context.processingDir.resolve("config.yaml").exists()) {
-                    null
-                } else {
-                    fetchProfile(context, snapshot.source, force)
+                // 缺少预处理后的 config.yaml 时拒绝提交，避免绕过脱敏。
+                val prepared = context.processingDir.resolve("config.yaml")
+                if (!prepared.isFile || prepared.length() == 0L) {
+                    throw IllegalArgumentException("Profile content is not prepared, re-import the subscription")
                 }
 
                 profileLock.withLock {
                     if (PendingDao().queryByUUID(snapshot.uuid) == snapshot) {
-                        context.importedDir.resolve(snapshot.uuid.toString()).deleteRecursively()
-                        context.processingDir.copyRecursively(context.importedDir.resolve(snapshot.uuid.toString()))
+                        val imported = context.importedDir.resolve(snapshot.uuid.toString())
+                        val staging = context.importedDir.resolve("${snapshot.uuid}.tmp")
+
+                        context.importedDir.mkdirs()
+                        staging.deleteRecursively()
+                        if (!context.processingDir.renameTo(staging)) {
+                            context.processingDir.copyRecursively(staging, overwrite = true)
+                            context.processingDir.deleteRecursively()
+                        }
+                        AtomicFs.replaceDirectory(staging, imported)
 
                         val old = ImportedDao().queryByUUID(snapshot.uuid)
-                        val updateInterval = subscriptionInfo?.subUpdateInterval
-                            ?.takeIf { old == null && snapshot.interval == 0L }
-                            ?: snapshot.interval
                         val new = Imported(
                             snapshot.uuid,
                             snapshot.name,
                             snapshot.type,
                             snapshot.source,
-                            updateInterval,
-                            subscriptionInfo?.subUpload ?: 0,
-                            subscriptionInfo?.subDownload ?: 0,
-                            subscriptionInfo?.subTotal ?: 0,
-                            subscriptionInfo?.subExpire ?: 0,
+                            snapshot.interval,
+                            old?.upload ?: 0,
+                            old?.download ?: 0,
+                            old?.total ?: 0,
+                            old?.expire ?: 0,
                             old?.createdAt ?: System.currentTimeMillis(),
                             ageSecretKey = snapshot.ageSecretKey,
                         )
@@ -91,22 +93,6 @@ object ProfileProcessor {
                 }
             }
         }
-    }
-
-    private suspend fun fetchProfile(
-        context: Context,
-        source: String,
-        force: Boolean,
-    ): FetchStatus? {
-        var subscriptionInfo: FetchStatus? = null
-
-        Clash.fetchAndValid(context.processingDir, source, force) {
-            if (it.action == FetchStatus.Action.SubscriptionInfo) {
-                subscriptionInfo = it
-            }
-        }.await()
-
-        return subscriptionInfo
     }
 
     suspend fun delete(context: Context, uuid: UUID) {
@@ -151,9 +137,7 @@ object ProfileProcessor {
 
             source.isEmpty() && type != Profile.Type.File -> throw IllegalArgumentException("Invalid url")
 
-            source.isNotEmpty() && scheme != "https" && scheme != "http" && scheme != "content" -> throw IllegalArgumentException(
-                "Unsupported url $source",
-            )
+            source.isNotEmpty() && scheme != "https" -> throw IllegalArgumentException("Only https subscriptions are supported")
 
             interval != 0L && TimeUnit.MILLISECONDS.toMinutes(interval) < 15 -> throw IllegalArgumentException("Invalid interval")
         }

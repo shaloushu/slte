@@ -10,13 +10,10 @@ fun CoroutineScope.ticker(period: Long): Channel<Long> {
     val channel = Channel<Long>(Channel.RENDEZVOUS)
 
     launch {
-        try {
-            while (isActive) {
-                channel.send(System.currentTimeMillis())
+        while (isActive) {
+            channel.send(System.currentTimeMillis())
 
-                delay(period)
-            }
-        } catch (ignored: Exception) {
+            delay(period)
         }
     }
 

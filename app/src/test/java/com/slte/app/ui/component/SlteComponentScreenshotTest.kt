@@ -15,6 +15,7 @@ import com.github.takahirom.roborazzi.captureRoboImage
 import com.slte.app.support.RobolectricTestApplication
 import com.slte.app.ui.theme.SlteIcons
 import com.slte.app.ui.theme.SlteTheme
+import org.junit.Assume
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -57,6 +58,11 @@ class SlteComponentScreenshotTest {
         dark: Boolean,
         content: @Composable () -> Unit,
     ) {
+        // 基线由 macOS 生成；Linux 渲染差异会导致 CI 假失败。
+        Assume.assumeFalse(
+            "截图基线仅在本地 macOS 校验",
+            System.getenv("CI_SKIP_SCREENSHOT") == "true",
+        )
         composeRule.setContent {
             SlteTheme(darkTheme = dark) {
                 Box(

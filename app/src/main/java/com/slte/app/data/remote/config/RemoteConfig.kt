@@ -13,6 +13,7 @@ import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -80,6 +81,8 @@ constructor(
 
     private val refreshMutex = Mutex()
 
+    private var probeJob: Job? = null
+
     init {
         // ETag 只存内存会随进程重启丢失，持久化的 etag 从此回灌，重启后仍能走 304
         store.load()?.let { cached ->
@@ -107,8 +110,17 @@ constructor(
         scope.launch { refresh(force = true) }
     }
 
+    @Synchronized
     fun startProbeLoop() {
-        scope.launch { prober.loop(PROBE_LOOP_INTERVAL_MS) }
+        if (probeJob?.isActive == true) return
+
+        probeJob = scope.launch { prober.loop(PROBE_LOOP_INTERVAL_MS) }
+    }
+
+    @Synchronized
+    fun stopProbeLoop() {
+        probeJob?.cancel()
+        probeJob = null
     }
 
     suspend fun refresh(force: Boolean = false): Boolean = // 启动首拉与手动强刷可能并发，竞速/探测/选主全程互斥，避免乱序写盘与探测流量翻倍
