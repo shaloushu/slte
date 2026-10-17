@@ -93,11 +93,15 @@ class SubscriptionUpdaterTest {
     }
 
     @Test
-    fun `并发更新时第二次调用直接返回不重复拉取`() = runTest(mainRule.dispatcher) {
+    fun `手动更新遇到进行中的更新时排队等待而不是丢弃`() = runTest(mainRule.dispatcher) {
         stubExpiry()
         val state = data()
         val gate = CompletableDeferred<Result<SubscribeInfo>>()
-        coEvery { subscribeRepository.fetchSubscribeInfo(force = true) } coAnswers { gate.await() }
+        var calls = 0
+        coEvery { subscribeRepository.fetchSubscribeInfo(force = true) } coAnswers {
+            calls++
+            if (calls == 1) gate.await() else Result.success(plan())
+        }
         coEvery { kernelConfig.updateProfile() } returns ProfileUpdateResult.UPDATED
         val updater = updater()
 
@@ -105,15 +109,16 @@ class SubscriptionUpdaterTest {
         runCurrent()
         assertTrue("第一次更新应已占用更新槽", state.value.isUpdating)
 
-        updater.updateSubscription(state, neverRunScope)
-
-        coVerify(exactly = 1) { subscribeRepository.fetchSubscribeInfo(force = true) }
+        val second = launch { updater.updateSubscription(state, neverRunScope) }
+        runCurrent()
 
         gate.complete(Result.success(plan()))
         first.join()
+        second.join()
 
-        coVerify(exactly = 1) { subscribeRepository.fetchSubscribeInfo(force = true) }
+        coVerify(exactly = 2) { subscribeRepository.fetchSubscribeInfo(force = true) }
         assertEquals(R.string.dashboard_refresh_done, state.value.errorMessageRes)
+        assertFalse(state.value.isUpdating)
     }
 
     @Test
