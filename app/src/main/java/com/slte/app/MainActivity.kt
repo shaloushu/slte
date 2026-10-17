@@ -7,9 +7,6 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import coil3.ImageLoader
-import coil3.compose.setSingletonImageLoaderFactory
-import coil3.svg.SvgDecoder
 import com.slte.app.data.local.LocaleStore
 import com.slte.app.data.local.ThemePreference
 import com.slte.app.ui.navigation.SlteApp
@@ -30,12 +27,6 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            setSingletonImageLoaderFactory { context ->
-                ImageLoader
-                    .Builder(context)
-                    .components { add(SvgDecoder.Factory()) }
-                    .build()
-            }
             val dark by themePreference.dark.collectAsStateWithLifecycle()
             SlteTheme(darkTheme = dark) {
                 SlteApp()
