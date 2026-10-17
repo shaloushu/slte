@@ -37,6 +37,10 @@ on:
         description: 追加白名单域名（逗号分隔）
         required: false
         default: ''
+      websiteUrl:
+        description: 官网地址（https；远程优先，失效回退）
+        required: false
+        default: ''
       crispWebsiteId:
         description: 客服 ID（Crisp Website ID，填了即启用应用内在线客服，留空不启用）
         required: false
@@ -162,6 +166,7 @@ jobs:
           SLTE_API_TYPE: ${{ inputs.apiType }}
           SLTE_REMOTE_CONFIG_URLS: ${{ inputs.remoteConfigUrls }}
           SLTE_ALLOWED_DOMAINS: ${{ inputs.allowedDomains }}
+          SLTE_WEBSITE_URL: ${{ inputs.websiteUrl }}
           SLTE_CRISP_WEBSITE_ID: ${{ inputs.crispWebsiteId }}
           SLTE_CRISP_ENABLED: ${{ inputs.crispWebsiteId != '' }}
 
