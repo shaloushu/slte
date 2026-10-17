@@ -7,9 +7,10 @@ import com.slte.app.data.remote.config.CrispConfig
 import com.slte.app.data.remote.config.CrispManager
 import com.slte.app.data.remote.config.RemoteConfig
 import com.slte.app.kernel.KernelBridge
+import com.slte.app.utils.AppLog
+import com.slte.app.utils.GeoInstaller
 import dagger.hilt.android.HiltAndroidApp
 import java.io.File
-import java.io.FileOutputStream
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -42,8 +43,9 @@ class SlteApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
-        Thread { extractGeoFiles() }.start()
+        // Geo 只由主进程安装：:background 进程只读，避免每次启动重复解包 24MB
         if (getProcessName() == packageName) {
+            Thread { installGeoFiles() }.start()
             remoteConfig.startFetch()
             remoteConfig.startProbeLoop()
             observeCrispConfig()
@@ -62,19 +64,20 @@ class SlteApplication : Application() {
         }
     }
 
-    private fun extractGeoFiles() {
-        val clashDir = File(filesDir, "clash").apply { mkdirs() }
-        val updateDate = packageManager.getPackageInfo(packageName, 0).lastUpdateTime
-        listOf("geoip.metadb", "geosite.dat", "ASN.mmdb").forEach { name ->
-            val target = File(clashDir, name)
-            if (target.exists() && target.lastModified() < updateDate) {
-                target.delete()
-            }
-            if (!target.exists()) {
-                assets.open(name).use { input ->
-                    FileOutputStream(target).use { output -> input.copyTo(output) }
-                }
-            }
+    private fun installGeoFiles() {
+        runCatching {
+            val version = packageManager.getPackageInfo(packageName, 0).lastUpdateTime
+            GeoInstaller.install(
+                directory = File(filesDir, "clash"),
+                version = version,
+                entries = GEO_ASSETS.associateWith { name -> { assets.open(name) } },
+            )
+        }.onFailure {
+            AppLog.w("SLTE-App", "Geo 资源安装失败: ${it.message ?: "Unknown"}")
         }
+    }
+
+    private companion object {
+        val GEO_ASSETS = listOf("geoip.metadb", "geosite.dat", "ASN.mmdb")
     }
 }
