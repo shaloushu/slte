@@ -17,3 +17,4 @@ app/gradle.properties
 .DS_Store
 AGENTS.md
 .vscode/
+/docs/
