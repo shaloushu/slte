@@ -113,7 +113,7 @@ constructor(
         }
 
         if (status.state == KernelVpnState.FAILED) {
-            AppLog.w("SLTE-Main", "VPN 启动失败: ${status.reason ?: "Unknown"}")
+            AppLog.w("SLTE-Main", "VPN 启动失败: ${sanitizeLog(status.reason ?: "Unknown")}")
         }
         if (connected && !wasConnected) {
             dnsCache.clear()

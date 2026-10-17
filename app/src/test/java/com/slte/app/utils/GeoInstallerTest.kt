@@ -11,12 +11,15 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 
+private typealias Opener = () -> InputStream
+
 class GeoInstallerTest {
     @get:Rule
     val temp = TemporaryFolder()
 
-    private fun entries(vararg pairs: Pair<String, String>): Map<String, () -> InputStream> =
-        pairs.associate { (name, content) -> name to { ByteArrayInputStream(content.toByteArray()) } }
+    private fun entries(vararg pairs: Pair<String, String>): Map<String, Opener> = pairs.associate { (name, content) ->
+        name to { ByteArrayInputStream(content.toByteArray()) }
+    }
 
     @Test
     fun `首次安装写入全部文件与版本标记`() {

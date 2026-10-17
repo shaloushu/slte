@@ -9,6 +9,7 @@ import com.slte.app.data.remote.config.RemoteConfig
 import com.slte.app.kernel.KernelBridge
 import com.slte.app.utils.AppLog
 import com.slte.app.utils.GeoInstaller
+import com.slte.app.utils.sanitizeLog
 import dagger.hilt.android.HiltAndroidApp
 import java.io.File
 import javax.inject.Inject
@@ -73,7 +74,7 @@ class SlteApplication : Application() {
                 entries = GEO_ASSETS.associateWith { name -> { assets.open(name) } },
             )
         }.onFailure {
-            AppLog.w("SLTE-App", "Geo 资源安装失败: ${it.message ?: "Unknown"}")
+            AppLog.w("SLTE-App", "Geo 资源安装失败: ${sanitizeLog(it.message ?: "Unknown")}")
         }
     }
 
