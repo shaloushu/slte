@@ -65,6 +65,9 @@ constructor(
     private val _vpnConnected = MutableStateFlow(false)
     override val vpnConnected: StateFlow<Boolean> = _vpnConnected.asStateFlow()
 
+    private val _vpnStatus = MutableStateFlow(KernelVpnStatus())
+    override val vpnStatus: StateFlow<KernelVpnStatus> = _vpnStatus.asStateFlow()
+
     private val _bindingState = MutableStateFlow(KernelBindingState.DISCONNECTED)
     override val bindingState: StateFlow<KernelBindingState> = _bindingState.asStateFlow()
 
@@ -98,7 +101,7 @@ constructor(
                     runCatching { remote?.clash()?.setLogObserver(kernelLogObserver) }
                         .onFailure { AppLog.w("SLTE-Kernel", "setLogObserver failed: ${sanitizeLog(it.message ?: "Unknown")}") }
                 }
-                syncConnectedState()
+                syncVpnState()
             }
 
             override fun onServiceDisconnected(name: ComponentName?) {
@@ -120,7 +123,8 @@ constructor(
         bound = false
         _bindingState.value = KernelBindingState.RETRYING
         rebindAttempts = 0
-        _vpnConnected.value = false
+        ++syncSeq
+        updateVpnStatus(KernelVpnStatus(KernelVpnState.STOPPED))
         unbindQuietly()
         scheduleRebind()
     }
@@ -140,8 +144,20 @@ constructor(
                 intent: Intent?,
             ) {
                 when (intent?.action) {
-                    Intents.ACTION_CLASH_STARTED -> _vpnConnected.value = true
-                    Intents.ACTION_CLASH_STOPPED -> _vpnConnected.value = false
+                    Intents.ACTION_CLASH_STARTED -> {
+                        ++syncSeq
+                        updateVpnStatus(KernelVpnStatus(KernelVpnState.RUNNING))
+                    }
+                    Intents.ACTION_CLASH_STOPPED -> {
+                        val reason = intent.getStringExtra(Intents.EXTRA_STOP_REASON)
+                        ++syncSeq
+                        updateVpnStatus(
+                            KernelVpnStatus(
+                                state = if (reason.isNullOrBlank()) KernelVpnState.STOPPED else KernelVpnState.FAILED,
+                                reason = reason,
+                            ),
+                        )
+                    }
                     Intents.ACTION_PROFILE_LOADED -> _profileLoaded.value += 1
                 }
             }
@@ -158,7 +174,7 @@ constructor(
             bound = true
             rebindAttempts = 0
             registerStatusReceiver()
-            syncConnectedState()
+            syncVpnState()
         } else {
             _bindingState.value = KernelBindingState.RETRYING
             scheduleRebind()
@@ -217,28 +233,41 @@ constructor(
             }
     }
 
-    private fun syncConnectedState() {
+    private fun updateVpnStatus(status: KernelVpnStatus) {
+        _vpnStatus.value = status
+        _vpnConnected.value = status.state == KernelVpnState.RUNNING
+    }
+
+    private fun syncVpnState() {
         val seq = ++syncSeq
         scope.launch {
-            val result =
-                try {
-                    context.contentResolver.call(
-                        Uri
-                            .Builder()
-                            .scheme("content")
-                            .authority(Authorities.STATUS_PROVIDER)
-                            .build(),
-                        StatusProvider.METHOD_CURRENT_PROFILE,
-                        null,
-                        null,
-                    ) != null
-                } catch (e: Exception) {
-                    AppLog.w("SLTE-Kernel", "syncConnectedState 查询失败: ${sanitizeLog(e.message ?: "Unknown")}")
-                    false
-                }
-
-            if (seq == syncSeq) _vpnConnected.value = result
+            val status = queryVpnStatus()
+            if (seq == syncSeq) updateVpnStatus(status)
         }
+    }
+
+    private fun queryVpnStatus(): KernelVpnStatus = try {
+        val result = context.contentResolver.call(
+            Uri
+                .Builder()
+                .scheme("content")
+                .authority(Authorities.STATUS_PROVIDER)
+                .build(),
+            StatusProvider.METHOD_KERNEL_STATE,
+            null,
+            null,
+        )
+        val state = when (result?.getString(StatusProvider.KEY_STATE)) {
+            "Starting" -> KernelVpnState.STARTING
+            "Running" -> KernelVpnState.RUNNING
+            "Stopping" -> KernelVpnState.STOPPING
+            "Failed" -> KernelVpnState.FAILED
+            else -> KernelVpnState.STOPPED
+        }
+        KernelVpnStatus(state, result?.getString(StatusProvider.KEY_REASON))
+    } catch (e: Exception) {
+        AppLog.w("SLTE-Kernel", "syncVpnState 查询失败: ${sanitizeLog(e.message ?: "Unknown")}")
+        KernelVpnStatus()
     }
 
     override fun vpnRequestIntent(): Intent? = VpnService.prepare(context)

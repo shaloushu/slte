@@ -9,6 +9,8 @@ import com.slte.app.domain.repository.DnsCache
 import com.slte.app.kernel.KernelBridge
 import com.slte.app.kernel.KernelConfig
 import com.slte.app.kernel.KernelProxy
+import com.slte.app.kernel.KernelVpnState
+import com.slte.app.kernel.KernelVpnStatus
 import com.slte.app.kernel.NodeNameResolver
 import com.slte.app.kernel.ensureGlobalSelection
 import com.slte.app.kernel.fetchPublicIp
@@ -45,6 +47,8 @@ constructor(
     private val _data = MutableStateFlow(DashboardData())
     val data: StateFlow<DashboardData> = _data.asStateFlow()
 
+    private var connectTimeoutJob: Job? = null
+
     init {
 
         dataWriter.applyCached(_data)
@@ -73,15 +77,67 @@ constructor(
 
     private fun observeKernelState() {
         viewModelScope.launch {
-            kernelManager.vpnConnected.collect { connected ->
-                _data.update { it.copy(isConnected = connected, isConnecting = false) }
-                if (connected) {
-                    dnsCache.clear()
-                    viewModelScope.launch { startAutoSelectionAndTest() }
-                    refreshKernelInfo()
-                }
+            kernelManager.vpnStatus.collect { status ->
+                handleVpnStatus(status)
             }
         }
+    }
+
+    private fun handleVpnStatus(status: KernelVpnStatus) {
+        val connected = status.state == KernelVpnState.RUNNING
+        val connecting =
+            status.state == KernelVpnState.STARTING ||
+                status.state == KernelVpnState.STOPPING
+        val wasConnected = _data.value.isConnected
+
+        if (status.state != KernelVpnState.STARTING) {
+            connectTimeoutJob?.cancel()
+            connectTimeoutJob = null
+        }
+
+        _data.update { state ->
+            when (status.state) {
+                KernelVpnState.RUNNING ->
+                    state.copy(isConnected = true, isConnecting = false, errorMessageRes = null)
+                KernelVpnState.STARTING, KernelVpnState.STOPPING ->
+                    state.copy(isConnected = false, isConnecting = true)
+                KernelVpnState.FAILED ->
+                    state.copy(
+                        isConnected = false,
+                        isConnecting = false,
+                        errorMessageRes = R.string.error_vpn_kernel_unavailable,
+                    )
+                KernelVpnState.STOPPED ->
+                    state.copy(isConnected = false, isConnecting = false)
+            }
+        }
+
+        if (status.state == KernelVpnState.FAILED) {
+            AppLog.w("SLTE-Main", "VPN 启动失败: ${status.reason ?: "Unknown"}")
+        }
+        if (connected && !wasConnected) {
+            dnsCache.clear()
+            viewModelScope.launch { startAutoSelectionAndTest() }
+            refreshKernelInfo()
+        }
+    }
+
+    private fun startConnectTimeout() {
+        connectTimeoutJob?.cancel()
+        connectTimeoutJob =
+            viewModelScope.launch {
+                delay(CONNECT_TIMEOUT_MS)
+                if (_data.value.isConnecting && !_data.value.isConnected) {
+                    AppLog.w("SLTE-Main", "VPN 连接超时，请求停止")
+                    kernelManager.stopVpn()
+                    _data.update {
+                        it.copy(
+                            isConnecting = false,
+                            errorMessageRes = R.string.error_vpn_kernel_unavailable,
+                        )
+                    }
+                }
+            }
     }
 
     /**
@@ -187,6 +243,7 @@ constructor(
                         return@launch
                     }
                     kernelManager.startVpn()
+                    startConnectTimeout()
                 } catch (e: Exception) {
                     AppLog.w("SLTE-Main", "toggleConnection: 启动失败 ${sanitizeLog(e.message ?: "Unknown")}")
                     _data.update {
@@ -228,8 +285,14 @@ constructor(
 
     fun onVpnPermissionDenied() {
         AppLog.w("SLTE-Main", "VPN 授权被拒绝，连接未建立")
+        connectTimeoutJob?.cancel()
+        connectTimeoutJob = null
         _data.update {
             it.copy(isConnecting = false, errorMessageRes = R.string.error_vpn_permission_denied)
         }
+    }
+
+    private companion object {
+        const val CONNECT_TIMEOUT_MS = 20_000L
     }
 }
