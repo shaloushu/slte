@@ -67,7 +67,6 @@ class SubscriptionUpdaterTest {
         kernelConfig = kernelConfig,
         serverRepository = serverRepository,
         kernelProxy = kernelProxy,
-        kernelManager = kernelManager,
         orderRepository = orderRepository,
         dataWriter = dataWriter,
     )

@@ -9,7 +9,6 @@ import com.slte.app.domain.repository.DnsCache
 import com.slte.app.kernel.KernelConfig
 import com.slte.app.kernel.KernelProxy
 import com.slte.app.kernel.NodeNameResolver
-import com.slte.app.kernel.api.KernelApi
 import com.slte.app.kernel.api.KernelVpnState
 import com.slte.app.kernel.api.KernelVpnStatus
 import com.slte.app.kernel.fetchPublicIp
@@ -37,7 +36,6 @@ class MainViewModel
 @Inject
 constructor(
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher,
-    private val kernelManager: KernelApi,
     private val kernelProxy: KernelProxy,
     private val kernelConfig: KernelConfig,
     private val dnsCache: DnsCache,
@@ -70,7 +68,7 @@ constructor(
 
     private fun observeProfileLoaded() {
         viewModelScope.launch {
-            kernelManager.profileLoaded.collect {
+            kernelProxy.profileLoaded.collect {
                 refreshKernelInfo()
             }
         }
@@ -78,7 +76,7 @@ constructor(
 
     private fun observeKernelState() {
         viewModelScope.launch {
-            kernelManager.vpnStatus.collect { status ->
+            kernelProxy.vpnStatus.collect { status ->
                 handleVpnStatus(status)
             }
         }
@@ -143,7 +141,7 @@ constructor(
                 delay(CONNECT_TIMEOUT_MS)
                 if (_data.value.isConnecting && !_data.value.isConnected) {
                     AppLog.w("SLTE-Main", "VPN 连接超时，请求停止")
-                    kernelManager.stopVpn()
+                    kernelProxy.stopVpn()
                     _data.update {
                         it.copy(
                             isConnecting = false,
@@ -238,8 +236,8 @@ constructor(
             connectJob?.cancel()
             connectTimeoutJob?.cancel()
             connectTimeoutJob = null
-            kernelManager.stopVpn()
-            if (kernelManager.vpnStatus.value.state == KernelVpnState.STOPPED) {
+            kernelProxy.stopVpn()
+            if (kernelProxy.vpnStatus.value.state == KernelVpnState.STOPPED) {
                 _data.update { it.copy(isConnecting = false, isConnected = false) }
             }
             return
@@ -249,7 +247,7 @@ constructor(
 
         AppLog.i("SLTE-Main", "toggleConnection: connected=${current.isConnected} -> ${!current.isConnected}")
         if (current.isConnected) {
-            kernelManager.stopVpn()
+            kernelProxy.stopVpn()
         } else {
             _data.update { it.copy(isConnecting = true, errorMessageRes = null) }
             connectJob = viewModelScope.launch {
@@ -269,7 +267,7 @@ constructor(
                             return@launch
                         }
                     }
-                    kernelManager.startVpn()
+                    kernelProxy.startVpn()
                     if (prepared) {
                         // 后台补一次校验/刷新，不阻塞连接
                         launch { runCatching { kernelConfig.ensureProfile() } }
@@ -290,7 +288,7 @@ constructor(
         }
     }
 
-    fun vpnRequestIntent(): Intent? = kernelManager.vpnRequestIntent()
+    fun vpnRequestIntent(): Intent? = kernelProxy.vpnRequestIntent()
 
     fun setProxyMode(mode: String) {
         _data.update { it.copy(proxyMode = mode) }

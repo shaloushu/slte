@@ -1,7 +1,6 @@
 package com.slte.app.domain.service
 
-import android.content.Context
-
+/** 应用内客服：实现方自行持有启动所需的上下文。 */
 interface SupportChat {
-    fun openChat(context: Context, email: String? = null)
+    fun openChat(email: String? = null)
 }

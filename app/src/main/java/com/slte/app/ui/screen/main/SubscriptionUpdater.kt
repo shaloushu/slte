@@ -8,7 +8,6 @@ import com.slte.app.domain.repository.SubscribeRepository
 import com.slte.app.kernel.KernelConfig
 import com.slte.app.kernel.KernelProxy
 import com.slte.app.kernel.ProfileUpdateResult
-import com.slte.app.kernel.api.KernelApi
 import com.slte.app.utils.AppLog
 import com.slte.app.utils.Constants
 import com.slte.app.utils.ErrorMessages
@@ -32,7 +31,6 @@ constructor(
     private val kernelConfig: KernelConfig,
     private val serverRepository: ServerRepository,
     private val kernelProxy: KernelProxy,
-    private val kernelManager: KernelApi,
     private val orderRepository: OrderRepository,
     private val dataWriter: DashboardDataWriter,
 ) {
@@ -215,10 +213,10 @@ constructor(
      * configChanged 时重新测速：旧延迟保留显示，测出结果后逐个覆盖。
      */
     private suspend fun autoSpeedTestAfterUpdate(configChanged: Boolean) {
-        if (configChanged && kernelManager.vpnConnected.value) {
-            val before = kernelManager.profileLoaded.value
+        if (configChanged && kernelProxy.vpnConnected.value) {
+            val before = kernelProxy.profileLoaded.value
             withTimeoutOrNull(SPEED_TEST_WAIT_MS) {
-                kernelManager.profileLoaded.first { it > before }
+                kernelProxy.profileLoaded.first { it > before }
             }
             serverRepository.invalidateSpecialNodeSnapshots()
         }

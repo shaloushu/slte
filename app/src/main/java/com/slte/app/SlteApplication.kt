@@ -50,6 +50,11 @@ class SlteApplication :
             }
         super.attachBaseContext(wrapped)
         Global.init(this)
+        // 必须在任何 Bridge 调用前选定内核（切换内核后进程重启会重新执行这里）
+        runCatching {
+            com.github.kr328.clash.core.bridge.Bridge.selectKernel(readKernelVariant(this))
+            com.github.kr328.clash.core.bridge.Bridge.initialize()
+        }
     }
 
     override fun onCreate() {
@@ -124,6 +129,14 @@ class SlteApplication :
     }
 
     private companion object {
-        val GEO_ASSETS = listOf("geoip.metadb", "geosite.dat", "ASN.mmdb")
+        val GEO_ASSETS = listOf("geoip.metadb", "geosite.dat", "ASN.mmdb", "Model.bin")
     }
+}
+
+/** 读取持久化的内核选择（与 DefaultKernelFactory 同一存储）。 */
+private fun readKernelVariant(context: android.content.Context): String {
+    val local =
+        context.getSharedPreferences("service", android.content.Context.MODE_PRIVATE)
+            .getString("kernel_type", null)
+    return local?.trim()?.lowercase().orEmpty().ifEmpty { "mihomo" }
 }

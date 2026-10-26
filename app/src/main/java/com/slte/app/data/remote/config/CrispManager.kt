@@ -16,7 +16,9 @@ import javax.inject.Singleton
 @Singleton
 class CrispManager
 @Inject
-constructor() : SupportChat {
+constructor(
+    @dagger.hilt.android.qualifiers.ApplicationContext private val context: Context,
+) : SupportChat {
     private var config: CrispConfig? = null
     private var appContext: Context? = null
     private var initialized = false
@@ -82,10 +84,7 @@ constructor() : SupportChat {
         nickname?.let { Crisp.setUserNickname(it) }
     }
 
-    override fun openChat(
-        context: Context,
-        email: String?,
-    ) {
+    override fun openChat(email: String?) {
         if (!initialized) return
 
         email?.let { setUser(it, null) }

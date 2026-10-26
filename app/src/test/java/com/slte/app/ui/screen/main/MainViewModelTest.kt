@@ -41,16 +41,16 @@ class MainViewModelTest {
     ): MainViewModel {
         kernelProxy.stubKernelApi()
         every { kernelManager.vpnConnected } returns MutableStateFlow(connected)
-        every { kernelManager.vpnStatus } returns
+        every { kernelProxy.vpnStatus } returns
             MutableStateFlow(
                 if (connected) KernelVpnStatus(KernelVpnState.RUNNING) else KernelVpnStatus(),
             )
-        every { kernelManager.profileLoaded } returns MutableStateFlow(0)
+        every { kernelProxy.profileLoaded } returns MutableStateFlow(0)
         every { dataWriter.applyCached(any()) } answers {
             firstArg<MutableStateFlow<DashboardData>>().value =
                 DashboardData(hasPlan = hasPlan, isConnected = connected)
         }
-        return MainViewModel(mainRule.dispatcher, kernelManager, kernelProxy, kernelConfig, dnsCache, subscriptionUpdater, dataWriter)
+        return MainViewModel(mainRule.dispatcher, kernelProxy, kernelConfig, dnsCache, subscriptionUpdater, dataWriter)
     }
 
     @Test
@@ -61,8 +61,8 @@ class MainViewModelTest {
         vm.toggleConnection()
         advanceUntilIdle()
 
-        verify(exactly = 0) { kernelManager.startVpn() }
-        verify(exactly = 0) { kernelManager.stopVpn() }
+        verify(exactly = 0) { kernelProxy.startVpn() }
+        verify(exactly = 0) { kernelProxy.stopVpn() }
     }
 
     @Test
@@ -76,7 +76,7 @@ class MainViewModelTest {
 
         assertEquals(R.string.error_vpn_kernel_unavailable, vm.data.value.errorMessageRes)
         assertTrue("失败后应复位连接中", !vm.data.value.isConnecting)
-        verify(exactly = 0) { kernelManager.startVpn() }
+        verify(exactly = 0) { kernelProxy.startVpn() }
     }
 
     @Test
@@ -88,7 +88,7 @@ class MainViewModelTest {
         vm.toggleConnection()
         advanceUntilIdle()
 
-        verify { kernelManager.startVpn() }
+        verify { kernelProxy.startVpn() }
     }
 
     @Test
@@ -99,14 +99,14 @@ class MainViewModelTest {
         vm.toggleConnection()
         advanceUntilIdle()
 
-        verify { kernelManager.stopVpn() }
-        verify(exactly = 0) { kernelManager.startVpn() }
+        verify { kernelProxy.stopVpn() }
+        verify(exactly = 0) { kernelProxy.startVpn() }
     }
 
     @Test
     fun `连接中再次点击取消连接`() = runTest(mainRule.dispatcher) {
         coEvery { kernelConfig.ensureProfile() } returns mockk(relaxed = true)
-        every { kernelManager.vpnStatus } returns MutableStateFlow(
+        every { kernelProxy.vpnStatus } returns MutableStateFlow(
             com.slte.app.kernel.api.KernelVpnStatus(state = com.slte.app.kernel.api.KernelVpnState.STOPPED),
         )
         val vm = viewModel(hasPlan = true)
@@ -117,8 +117,8 @@ class MainViewModelTest {
         advanceUntilIdle()
 
         // 第二次点击是取消：连接协程被取消，不再触发 startVpn
-        verify(exactly = 0) { kernelManager.startVpn() }
-        verify(exactly = 1) { kernelManager.stopVpn() }
+        verify(exactly = 0) { kernelProxy.startVpn() }
+        verify(exactly = 1) { kernelProxy.stopVpn() }
         assertTrue(!vm.data.value.isConnecting)
     }
 
@@ -138,13 +138,11 @@ class MainViewModelTest {
     fun `内核连接状态同步到首页并清空 DNS 缓存`() = runTest(mainRule.dispatcher) {
         kernelProxy.stubKernelApi()
         val status = MutableStateFlow(KernelVpnStatus())
-        every { kernelManager.vpnConnected } returns MutableStateFlow(false)
-        every { kernelManager.vpnStatus } returns status
-        every { kernelManager.profileLoaded } returns MutableStateFlow(0)
+        every { kernelProxy.vpnStatus } returns status
+        every { kernelProxy.profileLoaded } returns MutableStateFlow(0)
         val vm =
             MainViewModel(
                 mainRule.dispatcher,
-                kernelManager,
                 kernelProxy,
                 kernelConfig,
                 dnsCache,
