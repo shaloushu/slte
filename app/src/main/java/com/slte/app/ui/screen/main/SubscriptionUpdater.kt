@@ -5,11 +5,10 @@ import com.slte.app.domain.model.isOrderActivated
 import com.slte.app.domain.repository.OrderRepository
 import com.slte.app.domain.repository.ServerRepository
 import com.slte.app.domain.repository.SubscribeRepository
-import com.slte.app.kernel.KernelBridge
 import com.slte.app.kernel.KernelConfig
 import com.slte.app.kernel.KernelProxy
 import com.slte.app.kernel.ProfileUpdateResult
-import com.slte.app.kernel.refreshSelectionAndMeasure
+import com.slte.app.kernel.api.KernelApi
 import com.slte.app.utils.AppLog
 import com.slte.app.utils.Constants
 import com.slte.app.utils.ErrorMessages
@@ -33,7 +32,7 @@ constructor(
     private val kernelConfig: KernelConfig,
     private val serverRepository: ServerRepository,
     private val kernelProxy: KernelProxy,
-    private val kernelManager: KernelBridge,
+    private val kernelManager: KernelApi,
     private val orderRepository: OrderRepository,
     private val dataWriter: DashboardDataWriter,
 ) {

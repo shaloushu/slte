@@ -27,6 +27,7 @@ import androidx.compose.material.icons.outlined.Key
 import androidx.compose.material.icons.outlined.Lan
 import androidx.compose.material.icons.outlined.LightMode
 import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.Memory
 import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material.icons.outlined.Receipt
 import androidx.compose.material.icons.outlined.Schedule
@@ -102,6 +103,7 @@ object SlteIcons {
     val Settings: ImageVector = Icons.Outlined.Settings
     val About: ImageVector = Icons.Outlined.Info
 
+    val Kernel: ImageVector = Icons.Outlined.Memory
     val TunStack: ImageVector = Icons.Outlined.Lan
     val Language: ImageVector = Icons.Outlined.Public
     val ChangePassword: ImageVector = Icons.Outlined.Key

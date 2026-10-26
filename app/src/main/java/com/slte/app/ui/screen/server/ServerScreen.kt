@@ -145,7 +145,6 @@ fun ServerScreen(
                             }
                         },
                         delay = node.delay,
-                        offline = node.offline,
                         selected = data.selectedNodeId == node.id,
                         isTesting = data.isTesting && node.name !in data.testedNodes,
                         onClick = { viewModel.selectNode(node.id) },
@@ -165,7 +164,6 @@ private fun NodeCard(
     selected: Boolean,
     isTesting: Boolean,
     onClick: () -> Unit,
-    offline: Boolean = false,
 ) {
     val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
     Surface(
@@ -213,23 +211,11 @@ private fun NodeCard(
 
             if (isTesting) {
                 LottieLoadingIcon(modifier = Modifier.size(Dimens.icon.lg))
-            } else if (offline) {
-                OfflineText()
             } else if (delay != null) {
                 DelayText(delay)
             }
         }
     }
-}
-
-@Composable
-private fun OfflineText() {
-    Text(
-        text = stringResource(R.string.server_offline),
-        fontWeight = FontWeight.SemiBold,
-        style = SlteType.label,
-        color = SlteColors.current.statusDanger,
-    )
 }
 
 @Composable

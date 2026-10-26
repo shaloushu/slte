@@ -2,20 +2,19 @@ package com.slte.app.kernel
 
 import android.content.Context
 import androidx.core.content.edit
+import com.slte.app.kernel.api.KernelApi
+import com.slte.app.kernel.api.KernelServerInfo
+import com.slte.app.kernel.api.KernelTunnelMode
+import com.slte.app.kernel.api.SelectionGroupType
+import com.slte.app.kernel.api.SelectionType
 import com.slte.app.utils.AppLog
 import com.slte.app.utils.Constants
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.flow.Flow
 import okhttp3.OkHttpClient
-
-enum class SelectionType { AUTO, FALLBACK, MANUAL }
-
-data class KernelServerInfo(
-    val selection: SelectionType?,
-    val node: String?,
-)
 
 data class IpGeoInfo(
     val ip: String,
@@ -27,7 +26,7 @@ class KernelProxy
 @Inject
 constructor(
     internal val faultReporter: KernelFaultReporter,
-    internal val manager: KernelBridge,
+    internal val manager: KernelApi,
     internal val config: KernelConfig,
     internal val speedResultStore: SpeedResultStore,
     internal val geoIpResolver: GeoIpResolver,
@@ -129,28 +128,28 @@ constructor(
     suspend fun ensurePersistedSelection() = safe(Unit, "ensurePersistedSelection") {
         val clash = manager.awaitClash() ?: return@safe
         // 分组还没加载完就先不重放：此时切换必失败，会把用户的选择误当成"节点已不存在"清掉
-        if (selectorGroup() == null && waitForGroups() == null) return@safe
+        if (manager.selectorGroup() == null && manager.waitForSelectorGroup() == null) return@safe
         val savedType = modePrefs.getString(KEY_SELECTION_TYPE, null) ?: return@safe
         val target = SelectionType.entries.firstOrNull { it.name == savedType } ?: run {
             clearPersistedSelection()
             return@safe
         }
         val savedNode = modePrefs.getString(KEY_SELECTION_NODE, null)
-        val info = serverInfo()
+        val info = manager.selectionInfo()
         if (info?.selection == target && (target != SelectionType.MANUAL || info.node == savedNode)) return@safe
 
         val restored =
             when (target) {
-                SelectionType.AUTO -> selectAuto()
-                SelectionType.FALLBACK -> selectFallback()
-                SelectionType.MANUAL -> savedNode != null && selectNode(savedNode)
+                SelectionType.AUTO -> manager.applyAutoSelection()
+                SelectionType.FALLBACK -> manager.applyFallbackSelection()
+                SelectionType.MANUAL -> savedNode != null && manager.selectNode(savedNode)
             }
         if (restored) {
             AppLog.d("SLTE-Kernel", "ensurePersistedSelection: 已恢复 type=$target node=$savedNode")
         } else {
             AppLog.w("SLTE-Kernel", "ensurePersistedSelection: 恢复失败 type=$target node=$savedNode，落回自动选择")
             clearPersistedSelection()
-            selectAuto()
+            manager.applyAutoSelection()
         }
     }
 
@@ -175,6 +174,48 @@ constructor(
         clash.setTunStackMode(normalized)
         AppLog.d("SLTE-Kernel", "setTunStack: $normalized")
     }
+
+    /** 连接建立、订阅更新后：重放持久化的选择 + 触发全量健康检查。 */
+    suspend fun refreshSelectionAndMeasure() = safe(Unit, "refreshSelectionAndMeasure") {
+        ensurePersistedSelection()
+        manager.triggerHealthCheckAll()
+    }
+
+    suspend fun selectNode(name: String): Boolean = safe(false, "selectNode") {
+        val result = manager.selectNode(name)
+        if (result) persistSelection(SelectionType.MANUAL, name)
+        result
+    }
+
+    suspend fun selectAuto(): Boolean = safe(false, "selectAuto") {
+        val result = manager.applyAutoSelection()
+        if (result) persistSelection(SelectionType.AUTO)
+        result
+    }
+
+    suspend fun selectFallback(): Boolean = safe(false, "selectFallback") {
+        val result = manager.applyFallbackSelection()
+        if (result) persistSelection(SelectionType.FALLBACK)
+        result
+    }
+
+    suspend fun nodeNames(): List<String> = safe(emptyList(), "nodeNames") {
+        manager.nodeNames()
+    }
+
+    suspend fun serverInfo(): KernelServerInfo? = safe(null, "serverInfo") {
+        manager.selectionInfo()
+    }
+
+    suspend fun groupByTypeCurrentNode(type: SelectionGroupType): String? = safe(null, "groupByTypeCurrentNode") {
+        manager.currentNodeOf(type)
+    }
+
+    suspend fun ensureGlobalSelection() = safe(Unit, "ensureGlobalSelection") {
+        manager.ensureGlobalSelection()
+    }
+
+    fun liveSelectionFlow(intervalMs: Long = LIVE_SELECTION_POLL_MS): Flow<LiveSelection> = manager.liveSelectionFlow(intervalMs)
 
     internal val ipClient: OkHttpClient by lazy {
         OkHttpClient

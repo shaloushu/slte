@@ -40,9 +40,11 @@ fun SettingsScreen(
     onBack: () -> Unit,
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
+    var showKernelMenu by remember { mutableStateOf(false) }
     var showTunStackMenu by remember { mutableStateOf(false) }
     var showLanguageMenu by remember { mutableStateOf(false) }
     // 触发行的位置：小弹窗要以它为锚点（行滚动时同步刷新）
+    var kernelBounds by remember { mutableStateOf<Rect?>(null) }
     var tunStackBounds by remember { mutableStateOf<Rect?>(null) }
     var languageBounds by remember { mutableStateOf<Rect?>(null) }
     val data by viewModel.data.collectAsStateWithLifecycle()
@@ -63,6 +65,18 @@ fun SettingsScreen(
             ) {
                 item {
                     SlteGroup {
+                        // 单内核包不显示切换入口
+                        if (data.availableKernels.size > 1) {
+                            SlteRow(
+                                icon = SlteIcons.Kernel,
+                                title = stringResource(R.string.settings_kernel),
+                                value = data.currentKernel?.displayName.orEmpty(),
+                                chevron = true,
+                                onClick = { showKernelMenu = true },
+                                modifier = Modifier.onGloballyPositioned { kernelBounds = it.boundsInWindow() },
+                            )
+                            SlteGroupDivider()
+                        }
                         SlteRow(
                             icon = SlteIcons.TunStack,
                             title = stringResource(R.string.settings_tun_stack),
@@ -131,6 +145,23 @@ fun SettingsScreen(
         }
 
         // 小弹窗放在页面最上层：既不会被列表裁切，也能盖住顶栏
+        SlteOptionMenu(
+            expanded = showKernelMenu,
+            anchorBounds = kernelBounds,
+            onDismissRequest = { showKernelMenu = false },
+        ) {
+            data.availableKernels.forEach { type ->
+                SlteOptionMenuItem(
+                    label = type.displayName,
+                    selected = data.currentKernel == type,
+                    onClick = {
+                        viewModel.switchKernel(type)
+                        showKernelMenu = false
+                    },
+                )
+            }
+        }
+
         SlteOptionMenu(
             expanded = showTunStackMenu,
             anchorBounds = tunStackBounds,

@@ -107,7 +107,6 @@
     <string name="server_fallback">故障转移</string>
     <string name="server_fallback_now">Fallback（%1$s）</string>
     <string name="server_timeout">超时</string>
-    <string name="server_offline">离线</string>
 
     <!-- Invite -->
     <string name="invite_title">邀请返利</string>
@@ -210,6 +209,8 @@
     <string name="settings_tun_stack_mixed">Mixed</string>
     <string name="settings_tun_stack_mixed_desc">混合模式，性能与兼容性平衡</string>
     <string name="settings_tun_stack_switched">TUN 堆栈模式已切换</string>
+    <string name="settings_kernel">内核</string>
+    <string name="settings_kernel_switch_failed">内核切换失败</string>
     <string name="settings_change_password">修改密码</string>
     <string name="settings_dark_mode">深色模式</string>
     <string name="settings_change_pwd_old_hint">当前密码</string>

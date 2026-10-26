@@ -6,21 +6,21 @@ import androidx.lifecycle.viewModelScope
 import com.slte.app.R
 import com.slte.app.di.IoDispatcher
 import com.slte.app.domain.repository.DnsCache
-import com.slte.app.kernel.KernelBridge
 import com.slte.app.kernel.KernelConfig
 import com.slte.app.kernel.KernelProxy
-import com.slte.app.kernel.KernelVpnState
-import com.slte.app.kernel.KernelVpnStatus
 import com.slte.app.kernel.NodeNameResolver
-import com.slte.app.kernel.ensureGlobalSelection
+import com.slte.app.kernel.api.KernelApi
+import com.slte.app.kernel.api.KernelVpnState
+import com.slte.app.kernel.api.KernelVpnStatus
 import com.slte.app.kernel.fetchPublicIp
 import com.slte.app.kernel.liveSelectionFlow
-import com.slte.app.kernel.refreshSelectionAndMeasure
 import com.slte.app.utils.AppLog
+import com.slte.app.utils.Constants
 import com.slte.app.utils.ErrorMessages
 import com.slte.app.utils.sanitizeLog
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
@@ -37,7 +37,7 @@ class MainViewModel
 @Inject
 constructor(
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher,
-    private val kernelManager: KernelBridge,
+    private val kernelManager: KernelApi,
     private val kernelProxy: KernelProxy,
     private val kernelConfig: KernelConfig,
     private val dnsCache: DnsCache,
@@ -48,6 +48,7 @@ constructor(
     val data: StateFlow<DashboardData> = _data.asStateFlow()
 
     private var connectTimeoutJob: Job? = null
+    private var connectJob: Job? = null
 
     init {
 
@@ -106,15 +107,22 @@ constructor(
                 KernelVpnState.RUNNING ->
                     state.copy(isConnected = true, isConnecting = false, errorMessageRes = null)
                 KernelVpnState.STARTING, KernelVpnState.STOPPING ->
-                    state.copy(isConnected = false, isConnecting = true)
+                    state.copy(isConnected = false, isConnecting = true, currentIp = Constants.PLACEHOLDER_DASH, ipCountryCode = null)
                 KernelVpnState.FAILED ->
                     state.copy(
                         isConnected = false,
                         isConnecting = false,
+                        currentIp = Constants.PLACEHOLDER_DASH,
+                        ipCountryCode = null,
                         errorMessageRes = R.string.error_vpn_kernel_unavailable,
                     )
                 KernelVpnState.STOPPED ->
-                    state.copy(isConnected = false, isConnecting = connecting)
+                    state.copy(
+                        isConnected = false,
+                        isConnecting = connecting,
+                        currentIp = Constants.PLACEHOLDER_DASH,
+                        ipCountryCode = null,
+                    )
             }
         }
 
@@ -226,7 +234,16 @@ constructor(
 
     fun toggleConnection() {
         val current = _data.value
-        if (current.isConnecting) return
+        if (current.isConnecting) {
+            connectJob?.cancel()
+            connectTimeoutJob?.cancel()
+            connectTimeoutJob = null
+            kernelManager.stopVpn()
+            if (kernelManager.vpnStatus.value.state == KernelVpnState.STOPPED) {
+                _data.update { it.copy(isConnecting = false, isConnected = false) }
+            }
+            return
+        }
 
         if (!current.hasPlan) return
 
@@ -235,21 +252,31 @@ constructor(
             kernelManager.stopVpn()
         } else {
             _data.update { it.copy(isConnecting = true, errorMessageRes = null) }
-            viewModelScope.launch {
+            connectJob = viewModelScope.launch {
                 try {
-                    val profile = kernelConfig.ensureProfile()
-                    if (profile == null) {
-                        AppLog.w("SLTE-Main", "toggleConnection: ensureProfile 返回 null，内核不可用")
-                        _data.update {
-                            it.copy(
-                                isConnecting = false,
-                                errorMessageRes = R.string.error_vpn_kernel_unavailable,
-                            )
+                    // 配置已就绪时走快路径：立刻起 VPN，配置校验并行进行（启动速度与 mihomo 对齐）
+                    val prepared = kernelConfig.hasReadyProfile()
+                    if (!prepared) {
+                        val profile = kernelConfig.ensureProfile()
+                        if (profile == null) {
+                            AppLog.w("SLTE-Main", "toggleConnection: ensureProfile 返回 null，内核不可用")
+                            _data.update {
+                                it.copy(
+                                    isConnecting = false,
+                                    errorMessageRes = R.string.error_vpn_kernel_unavailable,
+                                )
+                            }
+                            return@launch
                         }
-                        return@launch
                     }
                     kernelManager.startVpn()
+                    if (prepared) {
+                        // 后台补一次校验/刷新，不阻塞连接
+                        launch { runCatching { kernelConfig.ensureProfile() } }
+                    }
                     startConnectTimeout()
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (e: Exception) {
                     AppLog.w("SLTE-Main", "toggleConnection: 启动失败 ${sanitizeLog(e.message ?: "Unknown")}")
                     _data.update {

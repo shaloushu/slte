@@ -12,7 +12,7 @@ import com.slte.app.data.local.LocaleStore
 import com.slte.app.data.remote.config.CrispConfig
 import com.slte.app.data.remote.config.CrispManager
 import com.slte.app.data.remote.config.RemoteConfig
-import com.slte.app.kernel.KernelBridge
+import com.slte.app.kernel.api.KernelApi
 import com.slte.app.utils.AppLog
 import com.slte.app.utils.GeoInstaller
 import com.slte.app.utils.sanitizeLog
@@ -32,7 +32,7 @@ class SlteApplication :
     lateinit var crispManager: CrispManager
 
     @Inject
-    lateinit var kernelManager: KernelBridge
+    lateinit var kernelManager: KernelApi
 
     @Inject
     lateinit var remoteConfig: RemoteConfig
