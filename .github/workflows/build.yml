@@ -45,6 +45,10 @@ on:
         description: 客服 ID（Crisp Website ID，填了即启用应用内在线客服，留空不启用）
         required: false
         default: ''
+      kernels:
+        description: 内核组合（逗号分隔一种组合；多组合用分号分隔，每组一个构建任务）
+        required: false
+        default: mihomo
       buildType:
         description: 构建类型（release 需仓库 Secrets 签名四件套）
         type: choice
@@ -61,7 +65,23 @@ permissions:
   contents: read
 
 jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.split.outputs.matrix }}
+    steps:
+      - id: split
+        run: |
+          JSON=$(python3 -c "import json,sys;print(json.dumps([s.strip() for s in sys.argv[1].split(';') if s.strip()]))" "${{ inputs.kernels }}")
+          [ -n "$JSON" ] && [ "$JSON" != "[]" ] || JSON='["mihomo"]'
+          echo "matrix=$JSON" >> "$GITHUB_OUTPUT"
+
   build:
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix:
+        kernels: ${{ fromJSON(needs.prepare.outputs.matrix) }}
     runs-on: ubuntu-latest
     steps:
       - name: 检出代码
@@ -173,6 +193,7 @@ jobs:
           SLTE_VERSION_NAME: ${{ inputs.versionName }}
           SLTE_VERSION_CODE: ${{ inputs.versionCode }}
           SLTE_BUILD_TYPE: ${{ inputs.buildType }}
+          SLTE_KERNELS: ${{ matrix.kernels }}
 
           SLTE_USE_MIRROR: 'false'
           CI_SKIP_SCREENSHOT: 'true'
@@ -188,6 +209,14 @@ jobs:
           if [ -z "$VC" ]; then VC=$(( $(date +%s) / 60 )); fi
           export SLTE_VERSION_CODE="$VC"
 
+          # 默认 mihomo 组合保持原产物名；其他内核组合追加标识（逗号/空格归一为连字符）
+          KTAG=$(printf '%s' "$SLTE_KERNELS" | tr ', ' '--')
+          if [ "$KTAG" = "mihomo" ]; then
+            echo "ARTIFACT_NAME=SLTE-$SLTE_VERSION_NAME" >> "$GITHUB_ENV"
+          else
+            echo "ARTIFACT_NAME=SLTE-$SLTE_VERSION_NAME-$KTAG" >> "$GITHUB_ENV"
+          fi
+
           # 单元测试只作为提示：Fork 用户通常会改文案、域名与图标，
           # 项目自带的测试（多语言键一致性、接口路径等）不通过时不再中断出包
           ./gradlew :app:testDebugUnitTest || echo "::warning::单元测试未通过（不影响安装包产出）"
@@ -198,7 +227,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: SLTE-${{ inputs.versionName }}
+          name: ${{ env.ARTIFACT_NAME }}
           path: app/build/outputs/apk/*/SLTE-*.apk
           if-no-files-found: warn
           retention-days: 90

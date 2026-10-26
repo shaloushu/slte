@@ -30,3 +30,7 @@
 -keepclassmembers class com.maxmind.db.** {
     <init>(...);
 }
+
+# snakeyaml：Android 无 java.beans，仅用其基础 Load/SafeConstructor 路径
+-dontwarn java.beans.**
+-keep class org.yaml.snakeyaml.** { *; }

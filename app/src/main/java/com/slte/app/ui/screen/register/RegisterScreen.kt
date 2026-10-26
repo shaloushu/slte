@@ -243,6 +243,7 @@ fun RegisterScreen(
  *
  * 后缀只能从后端下发的列表里选，避免"输入完才说不允许"；弹窗与语言切换同款。
  */
+
 @Composable
 private fun EmailSuffixField(
     localPart: String,
