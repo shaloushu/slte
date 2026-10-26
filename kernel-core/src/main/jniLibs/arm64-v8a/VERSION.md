@@ -3,7 +3,7 @@
 | 项 | 值 |
 |---|---|
 | 文件 | `libclash.so`（arm64-v8a） |
-| Go 内核 | metacubex/mihomo v1.19.30（本地 fork：`kernel-core/src/foss/golang`） |
+| Go 内核 | metacubex/mihomo v1.19.33（fork 目录：`kernel-core/src/foss/golang`，与上游同源） |
 | GIT_VERSION | `mihomo_custom` |
 | 本地补丁 | 增补 anytls/masque/openvpn/tailscale/zerotier 等 outbound（见 `kernel-core/src/foss/golang/clash`） |
 | 本地桥接 | `native/tunnel/urltest.go`：按节点 urlTest + 失败分类（offline/timeout）；`proxies.go` 组查询带 `measured` 标记（区分"没测过"与"测了失败"），供离线标识与测速流提前收尾使用 |
@@ -12,14 +12,14 @@
 | 分类修复 | `native/tunnel/urltest.go` 错误分类改大小写不敏感（第三方库 "Connection refused" 此前误判为超时） |
 | 构建方式 | Go NDK 交叉编译，产物手工放回本目录 |
 
-## 重建命令（2026-10-04）
+## 重建命令（2026-10-25，升级 v1.19.30 → v1.19.33）
 
 ```bash
 cd kernel-core/src/main/golang
 CGO_ENABLED=1 GOOS=android GOARCH=arm64 \
   CC=$NDK/toolchains/llvm/prebuilt/darwin-x86_64/bin/aarch64-linux-android28-clang \
   go build -buildmode=c-shared -tags "android cmfa with_gvisor" -trimpath \
-  -ldflags "-s -w -X github.com/metacubex/mihomo/constant.Version=v1.19.30" \
+  -ldflags "-s -w -X github.com/metacubex/mihomo/constant.Version=v1.19.33" \
   -o libclash.so ./native
 ```
 

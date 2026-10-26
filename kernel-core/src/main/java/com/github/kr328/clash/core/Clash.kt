@@ -2,6 +2,7 @@ package com.github.kr328.clash.core
 
 import com.github.kr328.clash.core.bridge.*
 import com.github.kr328.clash.core.model.*
+import com.github.kr328.clash.core.model.OverrideSlot
 import com.github.kr328.clash.core.util.parseInetSocketAddress
 import java.io.File
 import java.net.InetSocketAddress
@@ -14,10 +15,6 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.jsonPrimitive
 
 object Clash {
-    enum class OverrideSlot {
-        Persist,
-        Session,
-    }
 
     private val ConfigurationOverrideJson = Json {
         ignoreUnknownKeys = true
