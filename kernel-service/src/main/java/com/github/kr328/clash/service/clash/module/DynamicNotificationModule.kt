@@ -1,15 +1,10 @@
 package com.github.kr328.clash.service.clash.module
 
-import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
 import android.os.PowerManager
-import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.getSystemService
-import com.github.kr328.clash.common.compat.getColorCompat
-import com.github.kr328.clash.common.compat.pendingIntentFlags
-import com.github.kr328.clash.common.constants.Components
 import com.github.kr328.clash.common.util.ticker
 import com.github.kr328.clash.core.Clash
 import com.github.kr328.clash.core.util.trafficDownload
@@ -21,26 +16,6 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.selects.select
 
 class DynamicNotificationModule(service: Service) : Module<Unit>(service) {
-    private val builder = NotificationCompat.Builder(service, StaticNotificationModule.CHANNEL_ID)
-        .setSmallIcon(R.drawable.ic_logo_service)
-        .setOngoing(true)
-        .setColor(service.getColorCompat(R.color.color_clash))
-        .setOnlyAlertOnce(true)
-        .setShowWhen(false)
-        .setContentTitle(notificationTitle(service))
-        .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
-        .setContentIntent(
-            PendingIntent.getActivity(
-                service,
-                R.id.nf_clash_status,
-                Intent().setComponent(Components.MAIN_ACTIVITY)
-                    .setFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP),
-                pendingIntentFlags(PendingIntent.FLAG_UPDATE_CURRENT),
-            ),
-        )
-
-    private val notificationManager = NotificationManagerCompat.from(service)
-
     private fun update() {
         val now = Clash.queryTrafficNow()
         val total = Clash.queryTrafficTotal()
@@ -50,24 +25,7 @@ class DynamicNotificationModule(service: Service) : Module<Unit>(service) {
         val uploaded = total.trafficUpload()
         val downloaded = total.trafficDownload()
 
-        val notification = builder
-            .setContentText(
-                service.getString(
-                    R.string.clash_notification_content,
-                    "$uploading/s",
-                    "$downloading/s",
-                ),
-            )
-            .setSubText(
-                service.getString(
-                    R.string.clash_notification_content,
-                    uploaded,
-                    downloaded,
-                ),
-            )
-            .build()
-
-        notificationManager.notify(R.id.nf_clash_status, notification)
+        notifyTraffic(service, uploading, downloading, uploaded, downloaded)
     }
 
     override suspend fun run() = coroutineScope {
@@ -96,6 +54,23 @@ class DynamicNotificationModule(service: Service) : Module<Unit>(service) {
                     }
                 }
             }
+        }
+    }
+
+    companion object {
+        fun notifyTraffic(
+            service: Service,
+            uploading: String,
+            downloading: String,
+            uploaded: String,
+            downloaded: String,
+        ) {
+            val notification = notificationBuilder(service)
+                .setContentTitle(notificationTitle(service))
+                .setContentText(service.getString(R.string.clash_notification_content, "$uploading/s", "$downloading/s"))
+                .setSubText(service.getString(R.string.clash_notification_content, uploaded, downloaded))
+                .build()
+            NotificationManagerCompat.from(service).notify(R.id.nf_clash_status, notification)
         }
     }
 }

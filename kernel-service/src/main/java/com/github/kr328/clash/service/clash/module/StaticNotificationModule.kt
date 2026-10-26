@@ -25,23 +25,27 @@ internal fun notificationTitle(service: Service): String {
     }
 }
 
+internal fun notificationBuilder(
+    service: Service,
+): NotificationCompat.Builder = NotificationCompat.Builder(service, StaticNotificationModule.CHANNEL_ID)
+    .setSmallIcon(R.drawable.ic_logo_service)
+    .setOngoing(true)
+    .setColor(service.getColorCompat(R.color.color_clash))
+    .setOnlyAlertOnce(true)
+    .setShowWhen(false)
+    .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
+    .setContentIntent(
+        PendingIntent.getActivity(
+            service,
+            R.id.nf_clash_status,
+            Intent().setComponent(Components.MAIN_ACTIVITY)
+                .setFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP),
+            pendingIntentFlags(PendingIntent.FLAG_UPDATE_CURRENT),
+        ),
+    )
+
 class StaticNotificationModule(service: Service) : Module<Unit>(service) {
-    private val builder = NotificationCompat.Builder(service, CHANNEL_ID)
-        .setSmallIcon(R.drawable.ic_logo_service)
-        .setOngoing(true)
-        .setColor(service.getColorCompat(R.color.color_clash))
-        .setOnlyAlertOnce(true)
-        .setShowWhen(false)
-        .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
-        .setContentIntent(
-            PendingIntent.getActivity(
-                service,
-                R.id.nf_clash_status,
-                Intent().setComponent(Components.MAIN_ACTIVITY)
-                    .setFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP),
-                pendingIntentFlags(PendingIntent.FLAG_UPDATE_CURRENT),
-            ),
-        )
+    private val builder = notificationBuilder(service)
 
     override suspend fun run() {
         val loaded = receiveBroadcast(capacity = Channel.CONFLATED) {
@@ -74,16 +78,16 @@ class StaticNotificationModule(service: Service) : Module<Unit>(service) {
         }
 
         fun notifyLoadingNotification(service: Service) {
-            val notification =
-                NotificationCompat.Builder(service, CHANNEL_ID)
-                    .setSmallIcon(R.drawable.ic_logo_service)
-                    .setOngoing(true)
-                    .setColor(service.getColorCompat(R.color.color_clash))
-                    .setOnlyAlertOnce(true)
-                    .setShowWhen(false)
-                    .setContentTitle(notificationTitle(service))
-                    .build()
+            val notification = notificationBuilder(service).setContentTitle(notificationTitle(service)).build()
 
+            service.startForegroundCompat(R.id.nf_clash_status, notification)
+        }
+
+        fun notifyRunningNotification(service: Service) {
+            val notification = notificationBuilder(service)
+                .setContentTitle(notificationTitle(service))
+                .setContentText(service.getText(R.string.running))
+                .build()
             service.startForegroundCompat(R.id.nf_clash_status, notification)
         }
     }

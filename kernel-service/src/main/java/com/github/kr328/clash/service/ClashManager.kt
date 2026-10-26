@@ -6,6 +6,7 @@ import com.github.kr328.clash.common.constants.Intents
 import com.github.kr328.clash.common.log.Log
 import com.github.kr328.clash.core.Clash
 import com.github.kr328.clash.core.model.*
+import com.github.kr328.clash.core.model.OverrideSlot
 import com.github.kr328.clash.service.data.ImportedDao
 import com.github.kr328.clash.service.data.Selection
 import com.github.kr328.clash.service.data.SelectionDao
@@ -44,7 +45,7 @@ class ClashManager(private val context: Context) :
         Clash.load(context.importedDir.resolve(active.toString())).await()
     }
 
-    override fun queryOverride(slot: Clash.OverrideSlot): ConfigurationOverride = Clash.queryOverride(slot)
+    override fun queryOverride(slot: OverrideSlot): ConfigurationOverride = Clash.queryOverride(slot)
 
     override fun patchSelector(group: String, name: String): Boolean {
         return Clash.patchSelector(group, name).also {
@@ -58,7 +59,7 @@ class ClashManager(private val context: Context) :
         }
     }
 
-    override fun patchOverride(slot: Clash.OverrideSlot, configuration: ConfigurationOverride) {
+    override fun patchOverride(slot: OverrideSlot, configuration: ConfigurationOverride) {
         Clash.patchOverride(slot, configuration)
 
         context.sendOverrideChanged()
