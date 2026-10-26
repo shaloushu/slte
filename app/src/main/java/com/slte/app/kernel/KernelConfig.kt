@@ -154,7 +154,7 @@ constructor(
                 return@withLock ProfileUpdateResult.FAILED
             }
             val dir = context.filesDir.resolve("imported/${profile.uuid}")
-            // 统一由写入路径判定是否变化（含 sing-box 的 config.json 栈变化）
+            // 由写入路径统一判定内容是否变化
             if (writeProfileDir(dir, cleaned, onlyIfChanged = true)) {
                 manager.notifyProfileChanged(profile.uuid)
                 subscribeSource.saveSubscriptionUpdatedAt()
@@ -243,7 +243,14 @@ constructor(
     }
 
     /** mihomo_smart 注入智能分组预设；mihomo 原样。 */
-    private fun kernelFacing(cleaned: String): String = if (manager.type == KernelType.MIHOMO_SMART) SmartPreset.apply(cleaned) else cleaned
+    /**
+     * smart 预设只在智能内核真正加载时注入：二进制回退到标准版时注入 smart 组会导致解析失败。
+     */
+    private fun kernelFacing(cleaned: String): String {
+        val wantsSmart = manager.type == KernelType.MIHOMO_SMART
+        val loadedSmart = com.github.kr328.clash.core.bridge.Bridge.activeVariant() == "mihomo_smart"
+        return if (wantsSmart && loadedSmart) SmartPreset.apply(cleaned) else cleaned
+    }
 
     private fun profileName(): String = profileNameFor(subscribeSource.getEmail())
 

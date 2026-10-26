@@ -1,8 +1,8 @@
 package com.slte.app.kernel
 
 /**
- * mihomo_smart 配置预设：注入"自动选择"url-test 组（include-all）并设为主选择器默认项。
- * 行级转换、幂等；目标名被 url-test 组占用则采用；无可选组或无出站时原样返回。
+ * 智能内核配置预设：注入"自动选择"smart 组并设为主选择器默认项。
+ * 行级转换、幂等；同名 smart 组已存在则复用；无可选组或无出站时原样返回。
  */
 internal object SmartPreset {
 
@@ -26,13 +26,13 @@ internal object SmartPreset {
         return lines.joinToString("\n")
     }
 
-    /** 目标名空闲则新建；已被 url-test 组占用则采用；被其他类型占用则换下一个候选名。 */
+    /** 名字空闲则新建；已有同名 smart 组则复用；被其他类型占用则换下一个候选名。 */
     private fun resolveAutoName(groups: List<SmartPresetParser.Group>): String? {
         var candidate = AUTO_BASE
         var suffix = 2
         while (true) {
             val existing = groups.firstOrNull { it.name == candidate }
-            if (existing == null || existing.type.equals("url-test", ignoreCase = true)) return candidate
+            if (existing == null || existing.type.equals("smart", ignoreCase = true)) return candidate
             if (suffix > AUTO_NAME_LIMIT) return null
             candidate = "$AUTO_BASE $suffix"
             suffix++

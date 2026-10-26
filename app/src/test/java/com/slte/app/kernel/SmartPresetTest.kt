@@ -13,7 +13,7 @@ class SmartPresetTest {
 
         assertTrue(output.contains("- name: \"自动选择\""))
         assertTrue(output.contains("include-all: true"))
-        assertTrue(output.contains("type: url-test"))
+        assertTrue(output.contains("type: smart"))
         // 主选择器成员首位是自动组
         val selector = output.substringAfter("- name: 节点选择").substringBefore("- name:")
         assertTrue(selector.contains("- \"自动选择\""))
@@ -29,7 +29,7 @@ class SmartPresetTest {
     }
 
     @Test
-    fun `已有同名 url-test 组时直接采用不新建`() {
+    fun `已有同名 smart 组时直接采用不新建`() {
         val config =
             """
             proxies:
@@ -39,7 +39,7 @@ class SmartPresetTest {
                 port: 8388
             proxy-groups:
               - name: 自动选择
-                type: url-test
+                type: smart
                 proxies:
                   - jp-01
               - name: 节点选择

@@ -19,12 +19,14 @@ internal object SmartPresetRewriter {
             end.coerceAtMost(lines.size),
             listOf(
                 itemIndent + "- name: " + quote(autoName),
-                keyIndent + "type: url-test",
+                // 智能内核原生 smart 分组：按延迟/丢包/ASN 排序，可选 LightGBM 预测
+                keyIndent + "type: smart",
                 keyIndent + "include-all: true",
                 keyIndent + "url: " + TEST_URL,
                 keyIndent + "interval: 120",
-                keyIndent + "tolerance: 50",
-                keyIndent + "lazy: false",
+                keyIndent + "uselightgbm: true",
+                keyIndent + "collectdata: true",
+                keyIndent + "prefer-asn: true",
             ),
         )
     }

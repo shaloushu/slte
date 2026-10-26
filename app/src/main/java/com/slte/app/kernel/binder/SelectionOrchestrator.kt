@@ -71,7 +71,11 @@ internal class SelectionOrchestrator(
         val selector = primaryGroup(clash) ?: return null
         val now = clash.queryProxyGroup(selector, KernelProxySort.DEFAULT).now
         if (now.isBlank()) return KernelServerInfo(null, null)
-        val auto = findGroupByType(clash, "URLTest") ?: matchGroupName(clash, "自动", "auto", "url")
+        // smart 内核的分组类型是 Smart，需与 URLTest 一并识别为「自动选择」
+        val auto =
+            findGroupByType(clash, "Smart")
+                ?: findGroupByType(clash, "URLTest")
+                ?: matchGroupName(clash, "自动", "auto", "url", "smart")
         val fallback = findGroupByType(clash, "Fallback") ?: matchGroupName(clash, "故障", "fallback")
         val selection =
             when (now) {
@@ -99,7 +103,11 @@ internal class SelectionOrchestrator(
         if (clash.queryTunnelMode() != KernelTunnelMode.GLOBAL) return
         val now = clash.queryProxyGroup("GLOBAL", KernelProxySort.DEFAULT).now
         if (now.isNotBlank() && now != "DIRECT" && now != "REJECT") return
-        val target = findGroupByType(clash, "URLTest") ?: matchGroupName(clash, "自动", "auto", "url") ?: return
+        val target =
+            findGroupByType(clash, "Smart")
+                ?: findGroupByType(clash, "URLTest")
+                ?: matchGroupName(clash, "自动", "auto", "url", "smart")
+                ?: return
         clash.patchSelector("GLOBAL", target)
         AppLog.d("SLTE-Kernel", "ensureGlobal: GLOBAL -> $target")
     }
@@ -108,7 +116,10 @@ internal class SelectionOrchestrator(
         val clash = kernel() ?: return null
         val group =
             when (groupType) {
-                SelectionGroupType.AUTO -> matchGroupName(clash, "自动", "auto", "url") ?: findGroupByType(clash, "URLTest")
+                SelectionGroupType.AUTO ->
+                    matchGroupName(clash, "自动", "auto", "url", "smart")
+                        ?: findGroupByType(clash, "Smart")
+                        ?: findGroupByType(clash, "URLTest")
                 SelectionGroupType.FALLBACK -> matchGroupName(clash, "故障", "fallback") ?: findGroupByType(clash, "Fallback")
             } ?: return null
         return leafOutbound(clash, group)
@@ -126,6 +137,13 @@ internal class SelectionOrchestrator(
         val groupNames = clash.queryProxyGroupNames(excludeNotSelectable = false).toSet()
         var state = clash.queryProxyGroup(group, KernelProxySort.DEFAULT)
         var selected = state.now
+        // smart 组在未选中时 Now() 返回组名本身，按延迟挑最优节点代替
+        if (selected == group || selected == "Smart - Select") {
+            selected = pickFastest(state.proxies.filterNot { it.isGroup })
+                ?: state.proxies.firstOrNull { !it.isGroup }?.name
+                ?: return null
+            if (selected !in groupNames) return selected
+        }
         repeat(groupNames.size.coerceAtMost(8)) {
             if (selected.isBlank()) {
                 val candidates = state.proxies.filterNot { it.name == "DIRECT" || it.name == "REJECT" }
@@ -140,6 +158,10 @@ internal class SelectionOrchestrator(
         }
         return selected.takeIf { it.isNotBlank() && it !in groupNames }
     }
+
+    /** 组内延迟最低的节点（未测速的排最后）。 */
+    private fun pickFastest(proxies: List<com.slte.app.kernel.api.KernelProxySnapshot>): String? = proxies.filter { it.measured && it.delay > 0 }.minByOrNull { it.delay }?.name
+        ?: proxies.firstOrNull()?.name
 
     private suspend fun findGroupByType(
         clash: KernelClash,

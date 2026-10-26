@@ -5,6 +5,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.slte.app.BuildConfig
 import com.slte.app.kernel.api.KernelType
 import com.slte.app.kernel.binder.MihomoBinderKernelApi
+import com.slte.app.kernel.mihomo.MihomoSmartKernelApi
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -20,7 +21,8 @@ class DefaultKernelFactoryTest {
 
     private fun factory(): DefaultKernelFactory {
         val mihomo = MihomoBinderKernelApi(context)
-        return DefaultKernelFactory(context, javax.inject.Provider { mihomo })
+        val smart = MihomoSmartKernelApi(context)
+        return DefaultKernelFactory(context, javax.inject.Provider { mihomo }, javax.inject.Provider { smart })
     }
 
     @Test
@@ -36,13 +38,14 @@ class DefaultKernelFactoryTest {
     }
 
     @Test
-    fun `smart 内核与 mihomo 共享引擎且能力一致`() {
+    fun `smart 内核独立实例且能力一致`() {
         val mihomo = MihomoBinderKernelApi(context)
-        val factory = DefaultKernelFactory(context, javax.inject.Provider { mihomo })
-        val smart = factory.create(KernelType.MIHOMO_SMART)
+        val smart = MihomoSmartKernelApi(context)
+        val factory = DefaultKernelFactory(context, javax.inject.Provider { mihomo }, javax.inject.Provider { smart })
+        val created = factory.create(KernelType.MIHOMO_SMART)
 
-        assertEquals(KernelType.MIHOMO_SMART, smart.type)
-        assertEquals(mihomo.capabilities, smart.capabilities)
+        assertEquals(KernelType.MIHOMO_SMART, created.type)
+        assertEquals(mihomo.capabilities, created.capabilities)
     }
 
     @Test

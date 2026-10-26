@@ -22,6 +22,7 @@ class DefaultKernelFactory
 constructor(
     @ApplicationContext private val context: Context,
     private val mihomoProvider: Provider<MihomoBinderKernelApi>,
+    private val smartProvider: Provider<MihomoSmartKernelApi>,
 ) : KernelFactory {
     // 与服务进程共用 PreferenceProvider 存储（跨进程同步），不能各自用普通 SharedPreferences
     private val prefs = MultiProcessPreference(context, Authorities.SETTINGS_PROVIDER)
@@ -39,17 +40,18 @@ constructor(
 
     override fun create(type: KernelType): KernelApi = when (type) {
         KernelType.MIHOMO -> mihomoProvider.get()
-        KernelType.MIHOMO_SMART -> MihomoSmartKernelApi(mihomoProvider.get())
+        KernelType.MIHOMO_SMART -> smartProvider.get()
     }
 
     override suspend fun switchTo(type: KernelType) {
         require(type in available) { "kernel ${type.storageKey} is not available in this build" }
         // 双写兜底：provider 同步到服务进程，本地 SP 防 provider 老化
-        prefs.edit().putString(KEY_KERNEL_TYPE, type.storageKey).commit()
+        // 先同步写本地 SP：进程随后会被杀掉，provider 写入可能来不及落盘
         context.getSharedPreferences(SERVICE_PREFS, Context.MODE_PRIVATE)
             .edit()
             .putString(KEY_KERNEL_TYPE, type.storageKey)
             .commit()
+        runCatching { prefs.edit().putString(KEY_KERNEL_TYPE, type.storageKey).commit() }
         cached = null
         AppLog.i("SLTE-Kernel", "kernel switched to ${type.storageKey}; VPN restart required")
     }

@@ -32,7 +32,7 @@ import kotlinx.coroutines.launch
 
 /**
  * Binder 内核基类：生命周期在 [BinderKernelConnection]，本类只做门面/广播/编排。
- * mihomo 与 sing-box 都经同一套 kaidl Binder；差异由子类声明 type 与 capabilities。
+ * 具体内核由子类声明 type 与 capabilities，共用同一套 kaidl Binder。
  */
 abstract class BinderKernelBase(
     protected val context: Context,

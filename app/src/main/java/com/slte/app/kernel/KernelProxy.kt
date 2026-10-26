@@ -1,10 +1,12 @@
 package com.slte.app.kernel
 
 import android.content.Context
+import android.content.Intent
 import androidx.core.content.edit
 import com.slte.app.kernel.api.KernelApi
 import com.slte.app.kernel.api.KernelServerInfo
 import com.slte.app.kernel.api.KernelTunnelMode
+import com.slte.app.kernel.api.KernelVpnStatus
 import com.slte.app.kernel.api.SelectionGroupType
 import com.slte.app.kernel.api.SelectionType
 import com.slte.app.utils.AppLog
@@ -14,6 +16,7 @@ import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.StateFlow
 import okhttp3.OkHttpClient
 
 data class IpGeoInfo(
@@ -33,6 +36,20 @@ constructor(
     @ApplicationContext internal val context: Context,
 ) {
     internal val modePrefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+
+    // ---- VPN 生命周期门面：UI 只依赖 KernelProxy ----
+
+    val vpnConnected: StateFlow<Boolean> get() = manager.vpnConnected
+
+    val vpnStatus: StateFlow<KernelVpnStatus> get() = manager.vpnStatus
+
+    val profileLoaded: StateFlow<Int> get() = manager.profileLoaded
+
+    fun startVpn() = manager.startVpn()
+
+    fun stopVpn() = manager.stopVpn()
+
+    fun vpnRequestIntent(): Intent? = manager.vpnRequestIntent()
 
     internal suspend fun <T> safe(
         default: T,

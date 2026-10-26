@@ -10,7 +10,7 @@ internal object ProfileFiles {
     const val PRISTINE_FILE = "config.pristine"
     const val MARKER_FILE = ".slte-kernel"
 
-    /** 写入 mihomo 的 config.yaml；sing-box 需另行写 config.json。 */
+    /** 写入内核加载的 config.yaml、pristine 副本与内核类型标记。 */
     fun write(
         dir: File,
         facing: String,
