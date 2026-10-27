@@ -12,9 +12,9 @@
 SLTE_APP_NAME=SLTE
 # 应用包名（applicationId，默认 com.slte.app；修改后应用变为独立安装包，与旧包不冲突）
 SLTE_APPLICATION_ID=com.slte.app
-# 版本号（versionCode 整数 / versionName 显示版本，如 2.0.0）
+# 版本号（versionCode 整数 / versionName 显示版本，如 2.1.0）
 SLTE_VERSION_CODE=1
-SLTE_VERSION_NAME=2.0.0
+SLTE_VERSION_NAME=2.1.0
 
 # ---------------- 后端 API ----------------
 # 后端 API 主地址（https，替换为你的真实地址，如 https://api.yourdomain.com）

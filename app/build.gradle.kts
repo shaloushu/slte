@@ -44,7 +44,7 @@ fun slteHost(url: String): String? = url
 val slteAppName = slteValue("SLTE_APP_NAME") ?: "SLTE"
 val slteApplicationId = slteValue("SLTE_APPLICATION_ID") ?: "com.slte.app"
 val slteVersionCode = slteValue("SLTE_VERSION_CODE")?.toIntOrNull() ?: 1
-val slteVersionName = slteValue("SLTE_VERSION_NAME") ?: "2.0.0"
+val slteVersionName = slteValue("SLTE_VERSION_NAME") ?: "2.1.0"
 
 // 编译期内核集合：逗号分隔，只能包含已注册实现；空/非法回退 mihomo。
 // 单内核包（1 项）不显示切换入口，多内核包由设置页切换。

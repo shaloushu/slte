@@ -18,7 +18,7 @@ SLTE 的配置分三层，按优先级从高到低：
 |---|---|---|
 | `SLTE_APP_NAME` | `SLTE` | 应用显示名（桌面名称；图标母版 `app/icon-source.png`，替换后重新生成 `res/drawable-nodpi/ic_launcher_foreground.png`） |
 | `SLTE_VERSION_CODE` | `1` | 版本号（整数） |
-| `SLTE_VERSION_NAME` | `2.0.0` | 版本号（显示） |
+| `SLTE_VERSION_NAME` | `2.1.0` | 版本号（显示） |
 | `SLTE_API_BASE_URL` | `https://api.example.com` | 后端 API 主地址（https） |
 | `SLTE_API_TYPE` | `xiaov2b` | 后端类型：`xiaov2b` / `xboard` |
 | `SLTE_SUBSCRIBE_PATH` | `/api/v1/client/subscribe` | 订阅接口路径（与后端契约一致时勿动） |
