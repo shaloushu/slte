@@ -2,6 +2,7 @@ package com.github.kr328.clash.service.clash
 
 import com.github.kr328.clash.common.log.Log
 import com.github.kr328.clash.core.Clash
+import com.github.kr328.clash.core.model.OverrideSlot
 import com.github.kr328.clash.service.clash.module.Module
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Mutex
@@ -27,7 +28,7 @@ fun CoroutineScope.clashRuntime(
 ): ClashRuntime {
     return object : ClashRuntime {
         override fun launch() {
-            // 模块故障隔离；关键模块失败时主动停机。
+            // SupervisorJob：单个模块失败不再连坐整个 runtime；关键模块失败由 install 显式停机
             launch(Dispatchers.IO + SupervisorJob()) {
                 val runtimeScope = this
                 globalLock.withLock {
@@ -35,7 +36,7 @@ fun CoroutineScope.clashRuntime(
 
                     try {
                         Clash.reset()
-                        Clash.clearOverride(Clash.OverrideSlot.Session)
+                        Clash.clearOverride(OverrideSlot.Session)
 
                         val scope = object : ClashRuntimeScope {
                             override fun <E, T : Module<E>> install(
@@ -67,7 +68,7 @@ fun CoroutineScope.clashRuntime(
                     } finally {
                         withContext(NonCancellable) {
                             Clash.reset()
-                            Clash.clearOverride(Clash.OverrideSlot.Session)
+                            Clash.clearOverride(OverrideSlot.Session)
 
                             Log.d("ClashRuntime: destroyed")
                         }

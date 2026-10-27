@@ -12,7 +12,7 @@ import com.slte.app.data.local.LocaleStore
 import com.slte.app.data.remote.config.CrispConfig
 import com.slte.app.data.remote.config.CrispManager
 import com.slte.app.data.remote.config.RemoteConfig
-import com.slte.app.kernel.KernelBridge
+import com.slte.app.kernel.api.KernelApi
 import com.slte.app.utils.AppLog
 import com.slte.app.utils.GeoInstaller
 import com.slte.app.utils.sanitizeLog
@@ -32,7 +32,7 @@ class SlteApplication :
     lateinit var crispManager: CrispManager
 
     @Inject
-    lateinit var kernelManager: KernelBridge
+    lateinit var kernelManager: KernelApi
 
     @Inject
     lateinit var remoteConfig: RemoteConfig
@@ -50,11 +50,16 @@ class SlteApplication :
             }
         super.attachBaseContext(wrapped)
         Global.init(this)
+        // 必须在任何 Bridge 调用前选定内核（切换内核后进程重启会重新执行这里）
+        runCatching {
+            com.github.kr328.clash.core.bridge.Bridge.selectKernel(readKernelVariant(this))
+            com.github.kr328.clash.core.bridge.Bridge.initialize()
+        }
     }
 
     override fun onCreate() {
         super.onCreate()
-        // Geo 仅主进程安装，避免 :background 重复解包。
+        // Geo 只由主进程安装：:background 进程只读，避免每次启动重复解包 24MB
         if (getProcessName() == packageName) {
             Thread { installGeoFiles() }.start()
             remoteConfig.startFetch()
@@ -124,6 +129,14 @@ class SlteApplication :
     }
 
     private companion object {
-        val GEO_ASSETS = listOf("geoip.metadb", "geosite.dat", "ASN.mmdb")
+        val GEO_ASSETS = listOf("geoip.metadb", "geosite.dat", "ASN.mmdb", "Model.bin")
     }
+}
+
+/** 读取持久化的内核选择（与 DefaultKernelFactory 同一存储）。 */
+private fun readKernelVariant(context: android.content.Context): String {
+    val local =
+        context.getSharedPreferences("service", android.content.Context.MODE_PRIVATE)
+            .getString("kernel_type", null)
+    return local?.trim()?.lowercase().orEmpty().ifEmpty { "mihomo" }
 }

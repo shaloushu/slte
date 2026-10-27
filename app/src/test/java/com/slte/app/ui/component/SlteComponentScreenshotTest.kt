@@ -58,7 +58,7 @@ class SlteComponentScreenshotTest {
         dark: Boolean,
         content: @Composable () -> Unit,
     ) {
-        // 基线由 macOS 生成；Linux 渲染差异会导致 CI 假失败。
+        // 基线图由 macOS 渲染生成；Linux runner 的字体/栅格化不同，会在 CI 产生假失败
         Assume.assumeFalse(
             "截图基线仅在本地 macOS 校验",
             System.getenv("CI_SKIP_SCREENSHOT") == "true",

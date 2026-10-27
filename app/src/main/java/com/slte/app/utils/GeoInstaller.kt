@@ -8,7 +8,12 @@ import java.nio.file.AtomicMoveNotSupportedException
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 
-/** Geo 资源按文件原子安装；版本标记用于跳过重复解包。 */
+/**
+ * Geo 资源安装：逐文件临时写 + fsync + 原子替换，全部成功后再写版本标记。
+ *
+ * 原子替换保证内核在任何时刻读到的都是完整文件；版本标记 + 文件大小用于
+ * 下次启动跳过重复解包，也能发现被截断的文件。
+ */
 object GeoInstaller {
     private const val MARKER = ".geo-version"
 

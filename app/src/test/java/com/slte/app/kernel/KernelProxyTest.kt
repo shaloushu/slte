@@ -2,6 +2,9 @@ package com.slte.app.kernel
 
 import android.content.Context
 import com.slte.app.data.local.InMemoryPreferences
+import com.slte.app.kernel.api.KernelApi
+import com.slte.app.kernel.api.KernelClash
+import com.slte.app.kernel.api.KernelTunnelMode
 import com.slte.app.support.MainDispatcherRule
 import com.slte.app.utils.Constants
 import io.mockk.coEvery
@@ -25,7 +28,7 @@ class KernelProxyTest {
 
     private val prefs = InMemoryPreferences()
     private val context = mockk<Context>(relaxed = true)
-    private val manager = mockk<KernelManager>(relaxed = true)
+    private val manager = mockk<KernelApi>(relaxed = true)
     private val clash = mockk<KernelClash>(relaxed = true)
     private val config = mockk<KernelConfig>(relaxed = true)
     private val store = mockk<SpeedResultStore>(relaxed = true)

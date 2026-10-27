@@ -5,22 +5,27 @@ import com.slte.app.domain.model.ServerNode
 import com.slte.app.domain.model.ServerType
 import com.slte.app.domain.repository.ServerRepository
 import com.slte.app.domain.repository.SubscribeRepository
-import com.slte.app.kernel.KernelClash
-import com.slte.app.kernel.KernelManager
+import com.slte.app.kernel.KernelConfig
+import com.slte.app.kernel.KernelFaultReporter
 import com.slte.app.kernel.KernelProxy
-import com.slte.app.kernel.KernelProxyGroupSnapshot
-import com.slte.app.kernel.KernelProxySnapshot
-import com.slte.app.kernel.KernelProxySort
-import com.slte.app.kernel.KernelTunnelMode
+import com.slte.app.kernel.SpeedResultStore
+import com.slte.app.kernel.api.KernelApi
+import com.slte.app.kernel.api.KernelClash
+import com.slte.app.kernel.api.KernelProxyGroupSnapshot
+import com.slte.app.kernel.api.KernelProxySnapshot
+import com.slte.app.kernel.api.KernelProxySort
+import com.slte.app.kernel.api.KernelTunnelMode
 import com.slte.app.support.MainDispatcherRule
-import com.slte.app.support.stubKernelBridge
+import com.slte.app.support.stubKernelApi
+import com.slte.app.utils.Constants
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
-import io.mockk.verify
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -40,7 +45,7 @@ class ServerViewModelTest {
     private fun kernelNode(name: String) = KernelProxySnapshot(name = name, isGroup = false, delay = 100, measured = true)
 
     private fun viewModel(): ServerViewModel {
-        kernelProxy.stubKernelBridge()
+        kernelProxy.stubKernelApi()
         every { subscribeRepository.getCachedSubscribeInfo() } returns null
         return ServerViewModel(serverRepository, subscribeRepository, kernelProxy)
     }
@@ -48,7 +53,7 @@ class ServerViewModelTest {
     private fun stubKernelNodes(vararg names: String): KernelClash {
         kernelNow = names.firstOrNull().orEmpty()
         val clash = mockk<KernelClash>(relaxed = true)
-        val manager = mockk<KernelManager>(relaxed = true)
+        val manager = mockk<KernelApi>(relaxed = true)
         every { kernelProxy.manager } returns manager
         coEvery { manager.awaitClash() } returns clash
         every { clash.queryTunnelMode() } returns KernelTunnelMode.RULE
@@ -60,6 +65,13 @@ class ServerViewModelTest {
             kernelNow = secondArg()
             true
         }
+        coEvery { manager.selectNode(any()) } returns true
+        coEvery { kernelProxy.selectNode(any()) } returns true
+        coEvery { kernelProxy.selectAuto() } returns true
+        coEvery { kernelProxy.selectFallback() } returns true
+        coEvery { kernelProxy.nodeNames() } returns names.toList()
+        coEvery { kernelProxy.serverInfo() } returns com.slte.app.kernel.api.KernelServerInfo(com.slte.app.kernel.api.SelectionType.MANUAL, names.firstOrNull())
+        coEvery { kernelProxy.groupByTypeCurrentNode(any()) } returns names.firstOrNull()
         return clash
     }
 
@@ -117,6 +129,7 @@ class ServerViewModelTest {
         coEvery { serverRepository.fetchServers(any()) } returns Result.success(listOf(node("香港01", 1)))
         val vm = viewModel()
         stubKernelNodes("日本01")
+        coEvery { kernelProxy.selectNode(any()) } returns false
         vm.loadNodes(force = true)
         advanceUntilIdle()
 
@@ -151,7 +164,38 @@ class ServerViewModelTest {
         vm.selectNode(vm.data.value.nodes.first().id)
         advanceUntilIdle()
 
-        verify { clash.patchSelector(kernelGroup, "[vless]香港01") }
+        coVerify { kernelProxy.selectNode("[vless]香港01") }
+    }
+
+    @Test
+    fun `面板有但内核没有的节点按超时显示`() = runTest(mainRule.dispatcher) {
+        coEvery { serverRepository.fetchServers(any()) } returns
+            Result.success(listOf(node("香港01", 1), node("香港02", 2)))
+        // 真实 KernelProxy + stub manager：mock 链路上 nodeNames 的 safe 透传不可靠
+        val context = mockk<android.content.Context>(relaxed = true)
+        every { context.getSharedPreferences(any(), any()) } returns com.slte.app.data.local.InMemoryPreferences()
+        val manager = mockk<KernelApi>(relaxed = true)
+        coEvery { manager.nodeNames() } returns listOf("香港01")
+        val store = mockk<SpeedResultStore>(relaxed = true)
+        every { store.getSpeedResults() } returns emptyMap()
+        val kernel =
+            KernelProxy(
+                KernelFaultReporter(mainRule.dispatcher),
+                manager,
+                mockk<com.slte.app.kernel.KernelConfig>(relaxed = true),
+                store,
+                mockk(relaxed = true),
+                context,
+            )
+        val vm = ServerViewModel(serverRepository, subscribeRepository, kernel)
+
+        vm.loadNodes(force = true)
+        advanceUntilIdle()
+
+        val nodes = vm.data.value.nodes
+        assertEquals(listOf("香港01", "香港02"), nodes.map { it.name })
+        assertNull("内核有的节点不该有失败状态", nodes[0].delay)
+        assertEquals("订阅未下发的节点按超时显示", Constants.DELAY_TIMEOUT, nodes[1].delay)
     }
 
     @Test

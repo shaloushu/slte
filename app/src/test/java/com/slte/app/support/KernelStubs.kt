@@ -1,14 +1,14 @@
 package com.slte.app.support
 
-import com.slte.app.kernel.KernelBridge
 import com.slte.app.kernel.KernelProxy
+import com.slte.app.kernel.api.KernelApi
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 
-fun KernelProxy.stubKernelBridge(): KernelProxy {
-    val inner = mockk<KernelBridge>(relaxed = true)
+fun KernelProxy.stubKernelApi(): KernelProxy {
+    val inner = mockk<KernelApi>(relaxed = true)
     every { manager } returns inner
     coEvery { inner.awaitClash() } returns null
     // 测速流用 faultReporter 的 dispatcher 做 flowOn：mock 出来的 reporter 会返回 mock 的

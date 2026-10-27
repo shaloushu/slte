@@ -53,11 +53,11 @@ fun SlteApp(
                 val loggedIn = sessionState as SessionState.LoggedIn
                 LoggedInApp(
                     accountKey = loggedIn.user.subscribeToken,
-                    onSupport = { viewModel.supportChat.openChat(context, loggedIn.user.email) },
+                    onSupport = { viewModel.supportChat.openChat(loggedIn.user.email) },
                 )
             }
             is SessionState.LoggedOut -> AuthNavGraph(
-                onSupport = { viewModel.supportChat.openChat(context, null) },
+                onSupport = { viewModel.supportChat.openChat(null) },
             )
             is SessionState.Loading -> {
                 Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background))

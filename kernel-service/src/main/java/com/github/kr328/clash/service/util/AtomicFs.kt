@@ -5,7 +5,10 @@ import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
 
-/** 目录原子替换；两次 rename 之间的崩溃由 [recover] 恢复。 */
+/**
+ * 目录原子替换：staging 写完后先备份旧目录，再改名新目录；两次 rename 之间的
+ * 崩溃窗口由 [recover] 在服务启动时兜底恢复。
+ */
 object AtomicFs {
     private const val BACKUP_SUFFIX = ".old"
 

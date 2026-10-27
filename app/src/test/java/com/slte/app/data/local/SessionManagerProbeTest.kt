@@ -7,8 +7,8 @@ import com.slte.app.data.remote.api.SessionProbeResult
 import com.slte.app.data.remote.config.CrispManager
 import com.slte.app.domain.model.SessionNotice
 import com.slte.app.domain.model.SessionState
-import com.slte.app.kernel.KernelBridge
 import com.slte.app.kernel.KernelConfig
+import com.slte.app.kernel.api.KernelApi
 import com.slte.app.support.MainDispatcherRule
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -34,7 +34,7 @@ class SessionManagerProbeTest {
     private val authInterceptor = mockk<AuthInterceptor>(relaxed = true)
     private val authApi = mockk<AuthApi>(relaxed = true)
     private val crispManager = mockk<CrispManager>(relaxed = true)
-    private val kernelManager = mockk<KernelBridge>(relaxed = true)
+    private val kernelManager = mockk<KernelApi>(relaxed = true)
     private val kernelConfig = mockk<KernelConfig>(relaxed = true)
     private val fallbackDns = mockk<FallbackDns>(relaxed = true)
 

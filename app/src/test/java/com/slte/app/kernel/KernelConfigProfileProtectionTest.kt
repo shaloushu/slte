@@ -3,6 +3,9 @@ package com.slte.app.kernel
 import android.content.Context
 import com.github.kr328.clash.common.Global
 import com.slte.app.BuildConfig
+import com.slte.app.kernel.api.KernelApi
+import com.slte.app.kernel.api.KernelProfile
+import com.slte.app.kernel.api.KernelProfiles
 import com.slte.app.support.MainDispatcherRule
 import com.slte.app.support.RobolectricTestApplication
 import io.mockk.coEvery
@@ -35,7 +38,7 @@ class KernelConfigProfileProtectionTest {
     val tmp = TemporaryFolder()
 
     private val context = mockk<Context>(relaxed = true)
-    private val manager = mockk<KernelManager>(relaxed = true)
+    private val manager = mockk<KernelApi>(relaxed = true)
     private val profiles = mockk<KernelProfiles>(relaxed = true)
     private val subscribeSource = mockk<SubscribeSource>(relaxed = true)
     private val remoteConfig = mockk<AppRemoteConfig>(relaxed = true)

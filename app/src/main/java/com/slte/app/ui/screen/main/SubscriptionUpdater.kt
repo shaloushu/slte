@@ -5,11 +5,9 @@ import com.slte.app.domain.model.isOrderActivated
 import com.slte.app.domain.repository.OrderRepository
 import com.slte.app.domain.repository.ServerRepository
 import com.slte.app.domain.repository.SubscribeRepository
-import com.slte.app.kernel.KernelBridge
 import com.slte.app.kernel.KernelConfig
 import com.slte.app.kernel.KernelProxy
 import com.slte.app.kernel.ProfileUpdateResult
-import com.slte.app.kernel.refreshSelectionAndMeasure
 import com.slte.app.utils.AppLog
 import com.slte.app.utils.Constants
 import com.slte.app.utils.ErrorMessages
@@ -33,7 +31,6 @@ constructor(
     private val kernelConfig: KernelConfig,
     private val serverRepository: ServerRepository,
     private val kernelProxy: KernelProxy,
-    private val kernelManager: KernelBridge,
     private val orderRepository: OrderRepository,
     private val dataWriter: DashboardDataWriter,
 ) {
@@ -48,7 +45,7 @@ constructor(
         data: MutableStateFlow<DashboardData>,
         scope: CoroutineScope,
     ) {
-        // 手动刷新排队，避免被静默更新丢弃。
+        // 手动刷新排队等待：静默更新占用槽位时不能静默丢弃用户点击
         data.update { it.copy(isUpdating = true) }
         try {
             updateMutex.withLock {
@@ -83,7 +80,8 @@ constructor(
                 )
             }
         } finally {
-            // 取消时也复位，避免“更新中”遮罩残留。
+            // 协程被取消时 runApi 会重抛 CancellationException，onSuccess/onFailure 都不执行，
+            // 这里兜底复位，避免"更新中"遮罩永久留在界面上。
             data.update { it.copy(isUpdating = false) }
         }
     }
@@ -215,10 +213,10 @@ constructor(
      * configChanged 时重新测速：旧延迟保留显示，测出结果后逐个覆盖。
      */
     private suspend fun autoSpeedTestAfterUpdate(configChanged: Boolean) {
-        if (configChanged && kernelManager.vpnConnected.value) {
-            val before = kernelManager.profileLoaded.value
+        if (configChanged && kernelProxy.vpnConnected.value) {
+            val before = kernelProxy.profileLoaded.value
             withTimeoutOrNull(SPEED_TEST_WAIT_MS) {
-                kernelManager.profileLoaded.first { it > before }
+                kernelProxy.profileLoaded.first { it > before }
             }
             serverRepository.invalidateSpecialNodeSnapshots()
         }

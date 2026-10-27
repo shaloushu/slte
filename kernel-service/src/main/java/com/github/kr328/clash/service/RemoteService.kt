@@ -16,7 +16,8 @@ class RemoteService :
     IRemoteService {
     private val binder = this.wrap()
 
-    private var clash: ClashManager? = null
+    /** 仅 mihomo 分支使用；用 Any 避免 sing-box 分支加载 ClashManager 类。 */
+    private var clashHolder: Any? = null
     private var profile: ProfileManager? = null
     private var clashBinder: IClashManager? = null
     private var profileBinder: IProfileManager? = null
@@ -26,16 +27,16 @@ class RemoteService :
 
         AtomicFs.recover(importedDir)
 
-        clash = ClashManager(this)
         profile = ProfileManager(this)
-        clashBinder = clash?.wrap() as IClashManager?
         profileBinder = profile?.wrap() as IProfileManager?
+
+        clashBinder = ClashManager(this).also { clashHolder = it }.wrap() as IClashManager?
     }
 
     override fun onDestroy() {
         super.onDestroy()
 
-        cancelAndJoinBlockingAsync(*listOfNotNull<CoroutineScope>(clash, profile).toTypedArray())
+        cancelAndJoinBlockingAsync(*listOfNotNull<CoroutineScope>(clashHolder as? CoroutineScope, profile).toTypedArray())
     }
 
     override fun onBind(intent: Intent?): IBinder = binder

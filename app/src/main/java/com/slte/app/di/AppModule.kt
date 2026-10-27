@@ -31,10 +31,11 @@ import com.slte.app.domain.repository.ThemeRepository
 import com.slte.app.domain.repository.UpdateRepository
 import com.slte.app.domain.service.SupportChat
 import com.slte.app.kernel.AppRemoteConfig
-import com.slte.app.kernel.KernelBridge
-import com.slte.app.kernel.KernelManager
 import com.slte.app.kernel.SpeedResultStore
 import com.slte.app.kernel.SubscribeSource
+import com.slte.app.kernel.api.KernelApi
+import com.slte.app.kernel.factory.DefaultKernelFactory
+import com.slte.app.kernel.factory.KernelFactory
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -84,7 +85,11 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideKernelBridge(manager: KernelManager): KernelBridge = manager
+    fun provideKernelFactory(impl: DefaultKernelFactory): KernelFactory = impl
+
+    @Provides
+    @Singleton
+    fun provideKernelApi(factory: KernelFactory): KernelApi = factory.current()
 
     @Provides
     @Singleton

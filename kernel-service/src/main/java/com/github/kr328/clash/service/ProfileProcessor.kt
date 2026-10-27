@@ -45,7 +45,8 @@ object ProfileProcessor {
 
                 Clash.setAgeSecretKey(snapshot.ageSecretKey?.takeIf { it.isNotBlank() })
 
-                // 缺少预处理后的 config.yaml 时拒绝提交，避免绕过脱敏。
+                // App 必须先把清洗后的 YAML 写进 pending；缺失时拒绝提交，
+                // 不能回退到内核直接抓原始订阅（会绕过脱敏）
                 val prepared = context.processingDir.resolve("config.yaml")
                 if (!prepared.isFile || prepared.length() == 0L) {
                     throw IllegalArgumentException("Profile content is not prepared, re-import the subscription")

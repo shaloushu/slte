@@ -2,6 +2,9 @@ package com.slte.app.kernel
 
 import android.content.Context
 import com.slte.app.BuildConfig
+import com.slte.app.kernel.api.KernelApi
+import com.slte.app.kernel.api.KernelProfileType
+import com.slte.app.kernel.api.KernelType
 import com.slte.app.utils.AppLog
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.ByteArrayOutputStream
@@ -29,7 +32,7 @@ class KernelConfig
 @Inject
 constructor(
     private val faultReporter: KernelFaultReporter,
-    private val manager: KernelBridge,
+    private val manager: KernelApi,
     private val subscribeSource: SubscribeSource,
     private val remoteConfig: AppRemoteConfig,
     @ApplicationContext private val context: Context,
@@ -48,6 +51,18 @@ constructor(
     ): T = faultReporter.guard(default, operation, tag, block)
 
     suspend fun ensureProfile(): UUID? = profileMutex.withLock { ensureProfileLocked() }
+
+    /**
+     * 快速路径判定：本地已有可用配置（导入完成且文件存在）时无需等待网络。
+     * 仅做本地检查，不触发下载；返回 true 时连接可直接 startVpn。
+     */
+    suspend fun hasReadyProfile(): Boolean = runCatching {
+        val profiles = manager.awaitProfile() ?: return@runCatching false
+        val expectedName = profileName()
+        val profile = profiles.queryAll().firstOrNull { it.name == expectedName && it.imported } ?: return@runCatching false
+        val dir = context.filesDir.resolve("imported/${profile.uuid}")
+        dir.resolve(ProfileFiles.CONFIG_FILE).exists() && profiles.queryActive()?.uuid == profile.uuid
+    }.getOrDefault(false)
 
     private suspend fun ensureProfileLocked(): UUID? = safe(null, "ensureProfileLocked") {
         cleanupStalePending()
@@ -78,7 +93,9 @@ constructor(
             profiles.setActive(uuid)
         }
 
-        if (activeChanged || injectDirectRule(uuid)) {
+        // 必须始终同步：切换内核类型时即使 profile 未变也要重写（yaml↔json / 预设）
+        val synced = syncProfileFiles(uuid)
+        if (activeChanged || synced) {
             manager.notifyProfileChanged(uuid)
         }
         uuid
@@ -92,10 +109,8 @@ constructor(
             AppLog.w("SLTE-Kernel", "downloadSubscribeToPending: 订阅存在重名等致命问题，拒绝写入")
             return false
         }
-        val file = context.filesDir.resolve("pending/$uuid/config.yaml")
-        file.parentFile?.mkdirs()
-        atomicWrite(file, cleaned)
-        return true
+        val dir = context.filesDir.resolve("pending/$uuid")
+        return writeProfileDir(dir, cleaned)
     }
 
     private fun importedConfigDefective(uuid: UUID): Boolean {
@@ -138,17 +153,16 @@ constructor(
                 AppLog.w("SLTE-Kernel", "updateProfile: 订阅存在重名等致命问题，保留现有配置")
                 return@withLock ProfileUpdateResult.FAILED
             }
-            val file = context.filesDir.resolve("imported/${profile.uuid}/config.yaml")
-            if (file.exists() && file.readText() == cleaned) {
-                AppLog.d("SLTE-Kernel", "updateProfile: 订阅内容未变化，跳过内核重载")
+            val dir = context.filesDir.resolve("imported/${profile.uuid}")
+            // 由写入路径统一判定内容是否变化
+            if (writeProfileDir(dir, cleaned, onlyIfChanged = true)) {
+                manager.notifyProfileChanged(profile.uuid)
                 subscribeSource.saveSubscriptionUpdatedAt()
-                return@withLock ProfileUpdateResult.UNCHANGED
+                return@withLock ProfileUpdateResult.UPDATED
             }
-            file.parentFile?.mkdirs()
-            atomicWrite(file, cleaned)
-            manager.notifyProfileChanged(profile.uuid)
+            AppLog.d("SLTE-Kernel", "updateProfile: 订阅内容未变化，跳过内核重载")
             subscribeSource.saveSubscriptionUpdatedAt()
-            ProfileUpdateResult.UPDATED
+            return@withLock ProfileUpdateResult.UNCHANGED
         }
     }
 
@@ -188,15 +202,54 @@ constructor(
         return String(buffer.toByteArray(), Charsets.UTF_8)
     }
 
-    fun injectDirectRule(uuid: UUID): Boolean {
-        val domains = directDomains().ifEmpty { return false }
-        val file = context.filesDir.resolve("imported/$uuid/config.yaml")
-        if (!file.exists()) return false
-        val current = file.readText()
-        val cleaned = sanitizeOrNull(current, domains) ?: return false
-        if (current == cleaned) return false
-        atomicWrite(file, cleaned)
+    /** profile 目录与当前内核对齐（直连域名或内核类型变化即重写）；返回是否需要通知内核重载。 */
+    suspend fun injectDirectRule(uuid: UUID): Boolean = syncProfileFiles(uuid)
+
+    private suspend fun syncProfileFiles(uuid: UUID): Boolean {
+        val dir = context.filesDir.resolve("imported/$uuid")
+        val pristine = dir.resolve(ProfileFiles.PRISTINE_FILE)
+        val config = dir.resolve(ProfileFiles.CONFIG_FILE)
+        if (!config.exists() && !pristine.exists()) return false
+
+        val pristineText = runCatching {
+            if (pristine.exists()) pristine.readText() else config.readText()
+        }.getOrNull() ?: return false
+        val cleaned = sanitizeOrNull(pristineText, directDomains()) ?: return false
+        val facing = kernelFacing(cleaned)
+
+        val configText = runCatching { config.readText() }.getOrNull().orEmpty()
+        val marker = runCatching { dir.resolve(ProfileFiles.MARKER_FILE).readText() }.getOrNull().orEmpty()
+        val changed = cleaned != pristineText || facing != configText || marker != manager.type.storageKey
+        if (!changed) return false
+
+        return writeProfileDir(dir, cleaned)
+    }
+
+    /** 一次写齐：内核加载的 config.yaml、pristine 副本、内核类型标记。 */
+    /**
+     * 写入 profile 目录；[onlyIfChanged] 为 true 时内容一致则跳过并返回 false。
+     * 返回 true 表示确实写入了新内容。
+     */
+    private suspend fun writeProfileDir(
+        dir: java.io.File,
+        cleaned: String,
+        onlyIfChanged: Boolean = false,
+    ): Boolean {
+        if (onlyIfChanged && dir.resolve(ProfileFiles.CONFIG_FILE).let { it.exists() && it.readText() == kernelFacing(cleaned) }) {
+            return false
+        }
+        ProfileFiles.write(dir, kernelFacing(cleaned), cleaned, manager.type.storageKey)
         return true
+    }
+
+    /** mihomo_smart 注入智能分组预设；mihomo 原样。 */
+    /**
+     * smart 预设只在智能内核真正加载时注入：二进制回退到标准版时注入 smart 组会导致解析失败。
+     */
+    private fun kernelFacing(cleaned: String): String {
+        val wantsSmart = manager.type == KernelType.MIHOMO_SMART
+        val loadedSmart = com.github.kr328.clash.core.bridge.Bridge.activeVariant() == "mihomo_smart"
+        return if (wantsSmart && loadedSmart) SmartPreset.apply(cleaned) else cleaned
     }
 
     private fun profileName(): String = profileNameFor(subscribeSource.getEmail())
@@ -230,24 +283,6 @@ constructor(
         val host = runCatching { java.net.URI(remoteConfig.apiBaseUrl).host }.getOrNull() ?: return null
         val labels = host.split(".")
         return if (labels.size >= 2) labels.takeLast(2).joinToString(".") else host
-    }
-
-    private fun atomicWrite(
-        file: java.io.File,
-        text: String,
-    ) {
-        val tmp = java.io.File(file.parentFile, "${file.name}.tmp")
-        try {
-            java.io.FileOutputStream(tmp).use { out ->
-                out.write(text.toByteArray())
-                out.fd.sync()
-            }
-            if (!tmp.renameTo(file)) {
-                throw java.io.IOException("rename failed: ${file.name}")
-            }
-        } finally {
-            tmp.delete()
-        }
     }
 
     private fun cleanupStalePending() {

@@ -9,6 +9,7 @@ import android.net.VpnService
 import android.os.Build
 import com.github.kr328.clash.common.compat.pendingIntentFlags
 import com.github.kr328.clash.common.constants.Components
+import com.github.kr328.clash.common.constants.Intents
 import com.github.kr328.clash.common.log.Log
 import com.github.kr328.clash.service.clash.clashRuntime
 import com.github.kr328.clash.service.clash.module.*
@@ -36,80 +37,83 @@ class TunService :
     /** 运行时循环：Restart 用于切换 TUN 堆栈模式时原地重建 */
     private enum class RuntimeAction { Continue, Quit, Restart }
 
-    private val runtime = clashRuntime(
-        onCriticalFailure = {
-            reason = it
-            KernelState.failed(it)
-        },
-    ) {
-        val store = ServiceStore(self)
+    /** lazy：实例化即加载原生内核库。 */
+    private val runtime by lazy {
+        clashRuntime(
+            onCriticalFailure = {
+                reason = it
+                KernelState.failed(it)
+            },
+        ) {
+            val store = ServiceStore(self)
 
-        val close = install(CloseModule(self))
-        val tun = install(TunModule(self), critical = true)
-        val config = install(ConfigurationModule(self) { onProfileLoaded() }, critical = true)
-        val network = install(NetworkObserveModule(self))
-        val restart = install(TunRestartModule(self))
+            val close = install(CloseModule(self))
+            val tun = install(TunModule(self), critical = true)
+            val config = install(ConfigurationModule(self) { onProfileLoaded() }, critical = true)
+            val network = install(NetworkObserveModule(self))
+            val restart = install(TunRestartModule(self))
 
-        // 按环境变量选择通知：默认显示流量/流速，标题跟随应用名
-        if (BuildConfig.NOTIFICATION_TRAFFIC) {
-            install(DynamicNotificationModule(self))
-        } else {
-            install(StaticNotificationModule(self))
-        }
-
-        install(AppListCacheModule(self))
-        install(TimeZoneModule(self))
-        install(SuspendModule(self))
-
-        try {
-            tun.open()
-
-            while (isActive) {
-                val action = select<RuntimeAction> {
-                    close.onEvent {
-                        RuntimeAction.Quit
-                    }
-                    config.onEvent {
-                        reason = it.message
-                        KernelState.failed(it.message)
-
-                        RuntimeAction.Quit
-                    }
-                    network.onEvent { n ->
-                        if (Build.VERSION.SDK_INT in 22..28) {
-                            applyUnderlyingNetwork(n)
-                        }
-
-                        RuntimeAction.Continue
-                    }
-                    restart.onEvent {
-                        RuntimeAction.Restart
-                    }
-                }
-
-                when (action) {
-                    RuntimeAction.Continue -> Unit
-                    RuntimeAction.Quit -> break
-                    RuntimeAction.Restart -> {
-                        Log.i("Restart tun with stack: ${store.tunStackMode}")
-                        // 同步停掉旧 TUN（原生调用不挂起，避免与新 TUN 竞争），再按新堆栈重建
-                        KernelState.restartingTun()
-                        TunModule.requestStop()
-                        tun.open()
-                    }
-                }
+            // 按环境变量选择通知：默认显示流量/流速，标题跟随应用名
+            if (BuildConfig.NOTIFICATION_TRAFFIC) {
+                install(DynamicNotificationModule(self))
+            } else {
+                install(StaticNotificationModule(self))
             }
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            Log.e("Create clash runtime: ${e.message}", e)
 
-            reason = reason ?: e.message
-        } finally {
-            withContext(NonCancellable) {
-                tun.close()
+            install(AppListCacheModule(self))
+            install(TimeZoneModule(self))
+            install(SuspendModule(self))
 
-                stopSelf()
+            try {
+                tun.open()
+
+                while (isActive) {
+                    val action = select<RuntimeAction> {
+                        close.onEvent {
+                            RuntimeAction.Quit
+                        }
+                        config.onEvent {
+                            reason = it.message
+                            KernelState.failed(it.message)
+
+                            RuntimeAction.Quit
+                        }
+                        network.onEvent { n ->
+                            if (Build.VERSION.SDK_INT in 22..28) {
+                                applyUnderlyingNetwork(n)
+                            }
+
+                            RuntimeAction.Continue
+                        }
+                        restart.onEvent {
+                            RuntimeAction.Restart
+                        }
+                    }
+
+                    when (action) {
+                        RuntimeAction.Continue -> Unit
+                        RuntimeAction.Quit -> break
+                        RuntimeAction.Restart -> {
+                            Log.i("Restart tun with stack: ${store.tunStackMode}")
+                            // 同步停掉旧 TUN（原生调用不挂起，避免与新 TUN 竞争），再按新堆栈重建
+                            KernelState.restartingTun()
+                            TunModule.requestStop()
+                            tun.open()
+                        }
+                    }
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e("Create clash runtime: ${e.message}", e)
+
+                reason = reason ?: e.message
+            } finally {
+                withContext(NonCancellable) {
+                    tun.close()
+
+                    stopSelf()
+                }
             }
         }
     }
@@ -117,24 +121,51 @@ class TunService :
     override fun onCreate() {
         super.onCreate()
 
-        if (StatusProvider.serviceRunning) {
-            return stopSelf()
-        }
-
         StatusProvider.serviceRunning = true
-
         KernelState.starting()
         startedBroadcast = false
 
         StaticNotificationModule.createNotificationChannel(this)
         StaticNotificationModule.notifyLoadingNotification(this)
-
-        runtime.launch()
     }
 
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = super.onStartCommand(intent, flags, startId)
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        runtime.launch()
+        return super.onStartCommand(intent, flags, startId)
+    }
+
+    private var stopReceiver: android.content.BroadcastReceiver? = null
+
+    private fun contextCompatRegisterStopReceiver() {
+        val receiver =
+            object : android.content.BroadcastReceiver() {
+                override fun onReceive(
+                    context: android.content.Context?,
+                    intent: android.content.Intent?,
+                ) {
+                    when (intent?.action) {
+                        Intents.ACTION_CLASH_REQUEST_STOP -> stopSelf()
+                    }
+                }
+            }
+        stopReceiver = receiver
+        val filter =
+            android.content.IntentFilter(Intents.ACTION_CLASH_REQUEST_STOP)
+        // 广播发送方带自定义权限，接收时必须声明同一权限才能收到
+        androidx.core.content.ContextCompat.registerReceiver(
+            this,
+            receiver,
+            filter,
+            com.github.kr328.clash.common.constants.Permissions.RECEIVE_SELF_BROADCASTS,
+            null,
+            androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED,
+        )
+    }
 
     override fun onDestroy() {
+        stopReceiver?.let { runCatching { unregisterReceiver(it) } }
+        stopReceiver = null
+
         TunModule.requestStop()
 
         StatusProvider.serviceRunning = false
@@ -279,6 +310,8 @@ class TunService :
     private fun applyUnderlyingNetwork(network: Network?) = setUnderlyingNetworks(network?.let { arrayOf(it) })
 
     companion object {
+        const val EXTRA_KERNEL_TYPE = "slte.kernel.type"
+        private const val RECEIVER_NOT_EXPORTED = 4
         private const val TUN_MTU = 9000
         private const val TUN_SUBNET_PREFIX = 30
         private const val TUN_GATEWAY = "172.19.0.1"

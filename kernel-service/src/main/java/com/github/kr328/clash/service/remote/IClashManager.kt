@@ -1,6 +1,5 @@
 package com.github.kr328.clash.service.remote
 
-import com.github.kr328.clash.core.Clash
 import com.github.kr328.clash.core.model.*
 import com.github.kr328.kaidl.BinderInterface
 
@@ -22,8 +21,8 @@ interface IClashManager {
     suspend fun healthCheck(group: String)
     fun healthCheckAll()
 
-    fun queryOverride(slot: Clash.OverrideSlot): ConfigurationOverride
-    fun patchOverride(slot: Clash.OverrideSlot, configuration: ConfigurationOverride)
+    fun queryOverride(slot: OverrideSlot): ConfigurationOverride
+    fun patchOverride(slot: OverrideSlot, configuration: ConfigurationOverride)
 
     /** 查询当前 TUN 堆栈模式（system/gvisor/mixed） */
     fun tunStackMode(): String

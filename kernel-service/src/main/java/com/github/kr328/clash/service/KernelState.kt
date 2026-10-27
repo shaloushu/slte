@@ -1,6 +1,11 @@
 package com.github.kr328.clash.service
 
-/** 内核生命周期；TUN 与配置均就绪才进入 Running。 */
+/**
+ * 内核服务生命周期状态。
+ *
+ * Running 必须同时满足 TUN 已建立、配置已加载；只有到达 Running 才向 App 广播
+ * ACTION_CLASH_STARTED，避免"服务起来了但 TUN/配置还没就绪"被当成已连接。
+ */
 object KernelState {
     enum class State { Stopped, Starting, Running, Stopping, Failed }
 

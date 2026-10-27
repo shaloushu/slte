@@ -9,6 +9,10 @@ import com.slte.app.domain.repository.LocaleRepository
 import com.slte.app.domain.repository.SubscribeRepository
 import com.slte.app.domain.repository.ThemeRepository
 import com.slte.app.kernel.KernelProxy
+import com.slte.app.kernel.api.KernelType
+import com.slte.app.kernel.api.KernelVpnState
+import com.slte.app.kernel.factory.KernelFactory
+import com.slte.app.kernel.factory.ProcessRestarter
 import com.slte.app.ui.component.SubmitTip
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.util.Locale
@@ -16,7 +20,9 @@ import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
 enum class RemindSync { Loading, Idle, Saving }
 
@@ -32,6 +38,10 @@ data class SettingsData(
     val darkModeEnabled: Boolean = false,
 
     val locale: Locale? = null,
+
+    val availableKernels: List<KernelType> = emptyList(),
+    val currentKernel: KernelType? = null,
+    val kernelSwitching: Boolean = false,
 )
 
 data class ChangePasswordForm(
@@ -58,6 +68,8 @@ constructor(
     private val kernelProxy: KernelProxy,
     private val themeRepository: ThemeRepository,
     private val localeRepository: LocaleRepository,
+    private val kernelFactory: KernelFactory,
+    private val processRestarter: ProcessRestarter,
 ) : ViewModel() {
     private val _data =
         MutableStateFlow(
@@ -77,6 +89,7 @@ constructor(
     init {
         loadRemindSettings()
         loadTunStackMode()
+        loadKernelInfo()
     }
 
     fun setDarkMode(enabled: Boolean) {
@@ -110,6 +123,45 @@ constructor(
 
     fun consumeTunStackSwitch() {
         _data.value = _data.value.copy(tunStackSwitchCount = 0)
+    }
+
+    private fun loadKernelInfo() {
+        _data.value =
+            _data.value.copy(
+                availableKernels = kernelFactory.availableKernels(),
+                currentKernel = kernelFactory.current().type,
+            )
+    }
+
+    /** 停 VPN（若在跑）→ 持久化 → 重启进程。 */
+    fun switchKernel(type: KernelType) {
+        val data = _data.value
+        if (type == data.currentKernel || data.kernelSwitching) return
+        if (type !in data.availableKernels) return
+        _data.value = data.copy(kernelSwitching = true)
+        viewModelScope.launch {
+            val kernel = kernelFactory.current()
+            if (kernel.vpnStatus.value.state != KernelVpnState.STOPPED) {
+                kernel.stopVpn()
+                val stopped =
+                    withTimeoutOrNull(SWITCH_STOP_TIMEOUT_MS) {
+                        kernel.vpnStatus.first { it.state == KernelVpnState.STOPPED || it.state == KernelVpnState.FAILED }
+                    } != null
+                if (!stopped) {
+                    _data.value = _data.value.copy(kernelSwitching = false)
+                    _tip.value = SubmitTip(messageRes = R.string.settings_kernel_switch_failed)
+                    return@launch
+                }
+            }
+            runCatching { kernelFactory.switchTo(type) }
+                .onSuccess {
+                    _data.value = _data.value.copy(currentKernel = type)
+                    processRestarter.restart()
+                }.onFailure {
+                    _data.value = _data.value.copy(kernelSwitching = false)
+                    _tip.value = SubmitTip(messageRes = R.string.settings_kernel_switch_failed)
+                }
+        }
     }
 
     fun loadRemindSettings() {
@@ -231,5 +283,9 @@ constructor(
 
     fun clearTip() {
         _tip.value = null
+    }
+
+    private companion object {
+        const val SWITCH_STOP_TIMEOUT_MS = 10000L
     }
 }

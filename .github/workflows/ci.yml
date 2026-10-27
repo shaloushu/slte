@@ -17,9 +17,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
-      # 海外 runner 不使用阿里云镜像。
+      # GitHub runner 在海外，阿里云镜像会拖慢甚至阻断插件解析
       SLTE_USE_MIRROR: "false"
-      # 截图基线仅本地校验。
+      # 截图基线由 macOS 渲染生成，Linux runner 不校验
       CI_SKIP_SCREENSHOT: "true"
     steps:
       - uses: actions/checkout@v4

@@ -1,14 +1,23 @@
 package com.slte.app.kernel
 
-import com.github.kr328.clash.core.Clash
+import com.github.kr328.clash.core.model.OverrideSlot
 import com.github.kr328.clash.core.model.ProxySort
 import com.github.kr328.clash.core.model.TunnelState
-import com.github.kr328.clash.core.model.UrlTestResult
 import com.github.kr328.clash.service.model.Profile
 import com.github.kr328.clash.service.remote.IClashManager
 import com.github.kr328.clash.service.remote.IProfileManager
+import com.slte.app.kernel.api.KernelClash
+import com.slte.app.kernel.api.KernelProfile
+import com.slte.app.kernel.api.KernelProfileType
+import com.slte.app.kernel.api.KernelProfiles
+import com.slte.app.kernel.api.KernelProxyGroupSnapshot
+import com.slte.app.kernel.api.KernelProxySnapshot
+import com.slte.app.kernel.api.KernelProxySort
+import com.slte.app.kernel.api.KernelTunnelMode
+import com.slte.app.kernel.api.KernelUrlTestResult
 import java.util.UUID
 
+/** IClashManager → KernelClash 适配：把 kaidl 模型转成内核无关模型。 */
 internal class BinderKernelClash(
     private val remote: IClashManager,
 ) : KernelClash {
@@ -36,18 +45,18 @@ internal class BinderKernelClash(
 
     override fun patchSelector(group: String, name: String): Boolean = remote.patchSelector(group, name)
 
-    override fun urlTestFailureKind(name: String, timeoutMs: Int): KernelUrlTestFailure? = remote.urlTest(name, timeoutMs).kind.toKernelFailure()
+    override fun urlTest(name: String, timeoutMs: Int): KernelUrlTestResult = KernelUrlTestResult(remote.urlTest(name, timeoutMs).delay)
 
     override suspend fun healthCheck(group: String) = remote.healthCheck(group)
 
     override fun healthCheckAll() = remote.healthCheckAll()
 
-    override fun queryPersistedProxyMode(): KernelTunnelMode? = remote.queryOverride(Clash.OverrideSlot.Persist).mode?.toKernelMode()
+    override fun queryPersistedProxyMode(): KernelTunnelMode? = remote.queryOverride(OverrideSlot.Persist).mode?.toKernelMode()
 
     override fun setPersistedProxyMode(mode: KernelTunnelMode) {
-        val override = remote.queryOverride(Clash.OverrideSlot.Persist)
+        val override = remote.queryOverride(OverrideSlot.Persist)
         override.mode = mode.toClashMode()
-        remote.patchOverride(Clash.OverrideSlot.Persist, override)
+        remote.patchOverride(OverrideSlot.Persist, override)
     }
 
     override fun tunStackMode(): String = remote.tunStackMode()
@@ -69,13 +78,7 @@ private fun KernelTunnelMode.toClashMode(): TunnelState.Mode = when (this) {
     KernelTunnelMode.SCRIPT -> TunnelState.Mode.Script
 }
 
-private fun String.toKernelFailure(): KernelUrlTestFailure? = when (this) {
-    UrlTestResult.KIND_ALIVE -> null
-    UrlTestResult.KIND_OFFLINE -> KernelUrlTestFailure.OFFLINE
-    UrlTestResult.KIND_TIMEOUT -> KernelUrlTestFailure.TIMEOUT
-    else -> KernelUrlTestFailure.OTHER
-}
-
+/** IProfileManager → KernelProfiles 适配。 */
 internal class BinderKernelProfiles(
     private val remote: IProfileManager,
 ) : KernelProfiles {

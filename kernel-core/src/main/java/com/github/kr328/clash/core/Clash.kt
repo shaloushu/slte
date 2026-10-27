@@ -2,6 +2,7 @@ package com.github.kr328.clash.core
 
 import com.github.kr328.clash.core.bridge.*
 import com.github.kr328.clash.core.model.*
+import com.github.kr328.clash.core.model.OverrideSlot
 import com.github.kr328.clash.core.util.parseInetSocketAddress
 import java.io.File
 import java.net.InetSocketAddress
@@ -14,10 +15,6 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.jsonPrimitive
 
 object Clash {
-    enum class OverrideSlot {
-        Persist,
-        Session,
-    }
 
     private val ConfigurationOverrideJson = Json {
         ignoreUnknownKeys = true
@@ -191,12 +188,12 @@ object Clash {
     fun subscribeLogcat(): ReceiveChannel<LogMessage> = Channel<LogMessage>(32).apply {
         Bridge.nativeSubscribeLogcat(object : LogcatInterface {
             override fun received(jsonPayload: String): Boolean {
-                // 畸形日志仅丢弃当前条。
+                // 单条畸形日志解析失败只丢弃该条，不结束订阅
                 val message = runCatching {
                     Json.decodeFromString(LogMessage.serializer(), jsonPayload)
                 }.getOrNull() ?: return false
 
-                // 通道关闭表示已退订；通道满仅丢弃当前条。
+                // 通道已关闭说明消费者已退订；通道满只丢弃该条，保持订阅
                 return trySend(message).isClosed
             }
         })

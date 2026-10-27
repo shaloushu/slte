@@ -146,23 +146,7 @@ constructor(
         prefs.edit {
             remove(KEY_SPEED_RESULTS)
             remove(KEY_SPEED_RESULTS_AT)
-            remove(KEY_OFFLINE_NODES)
-            remove(KEY_OFFLINE_NODES_AT)
         }
-    }
-
-    /** 探测确认"后端不在了"的节点（内核名），与延迟缓存同生命周期。 */
-    override fun saveOfflineNodes(names: Set<String>) {
-        prefs.edit {
-            putString(KEY_OFFLINE_NODES, Json.encodeToString(names))
-            putLong(KEY_OFFLINE_NODES_AT, System.currentTimeMillis())
-        }
-    }
-
-    override fun getOfflineNodes(): Set<String>? {
-        val savedAt = prefs.getLong(KEY_OFFLINE_NODES_AT, 0L)
-        if (!CachePolicy.isFresh(savedAt, System.currentTimeMillis(), CachePolicy.LATENCY_TTL_MS)) return null
-        return readCached(KEY_OFFLINE_NODES) { Json.decodeFromString<Set<String>>(it) }
     }
 
     fun clear() {
@@ -180,8 +164,6 @@ constructor(
             remove(KEY_SPEED_RESULTS_AT)
             remove(KEY_SPECIAL_AUTO)
             remove(KEY_SPECIAL_FALLBACK)
-            remove(KEY_OFFLINE_NODES)
-            remove(KEY_OFFLINE_NODES_AT)
             remove(KEY_CACHE_OWNER)
         }
     }
@@ -198,8 +180,6 @@ constructor(
             remove(KEY_SPEED_RESULTS_AT)
             remove(KEY_SPECIAL_AUTO)
             remove(KEY_SPECIAL_FALLBACK)
-            remove(KEY_OFFLINE_NODES)
-            remove(KEY_OFFLINE_NODES_AT)
         }
     }
 
@@ -220,8 +200,6 @@ constructor(
         private const val KEY_SPEED_RESULTS_AT = "speed_results_at"
         private const val KEY_SPECIAL_AUTO = "special_node_auto"
         private const val KEY_SPECIAL_FALLBACK = "special_node_fallback"
-        private const val KEY_OFFLINE_NODES = "offline_nodes"
-        private const val KEY_OFFLINE_NODES_AT = "offline_nodes_at"
         private const val KEY_CACHE_OWNER = "cache_owner"
     }
 }

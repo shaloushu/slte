@@ -12,9 +12,9 @@ import com.slte.app.domain.repository.ServerRepository
 import com.slte.app.domain.repository.SubscribeRepository
 import com.slte.app.domain.usecase.DaysUntilExpiryUseCase
 import com.slte.app.kernel.KernelConfig
-import com.slte.app.kernel.KernelManager
 import com.slte.app.kernel.KernelProxy
 import com.slte.app.kernel.ProfileUpdateResult
+import com.slte.app.kernel.api.KernelApi
 import com.slte.app.support.MainDispatcherRule
 import com.slte.app.utils.Constants
 import com.slte.app.utils.ErrorMessages
@@ -49,7 +49,7 @@ class SubscriptionUpdaterTest {
     private val kernelConfig = mockk<KernelConfig>(relaxed = true)
     private val serverRepository = mockk<ServerRepository>(relaxed = true)
     private val kernelProxy = mockk<KernelProxy>(relaxed = true)
-    private val kernelManager = mockk<KernelManager>(relaxed = true)
+    private val kernelManager = mockk<KernelApi>(relaxed = true)
     private val orderRepository = mockk<OrderRepositoryImpl>(relaxed = true)
     private val expiryUseCase = mockk<DaysUntilExpiryUseCase>(relaxed = true)
 
@@ -67,7 +67,6 @@ class SubscriptionUpdaterTest {
         kernelConfig = kernelConfig,
         serverRepository = serverRepository,
         kernelProxy = kernelProxy,
-        kernelManager = kernelManager,
         orderRepository = orderRepository,
         dataWriter = dataWriter,
     )

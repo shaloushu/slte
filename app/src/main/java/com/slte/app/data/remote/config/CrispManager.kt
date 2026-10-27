@@ -16,7 +16,9 @@ import javax.inject.Singleton
 @Singleton
 class CrispManager
 @Inject
-constructor() : SupportChat {
+constructor(
+    @dagger.hilt.android.qualifiers.ApplicationContext private val context: Context,
+) : SupportChat {
     private var config: CrispConfig? = null
     private var appContext: Context? = null
     private var initialized = false
@@ -82,14 +84,14 @@ constructor() : SupportChat {
         nickname?.let { Crisp.setUserNickname(it) }
     }
 
-    override fun openChat(
-        context: Context,
-        email: String?,
-    ) {
+    override fun openChat(email: String?) {
         if (!initialized) return
 
         email?.let { setUser(it, null) }
-        context.startActivity(Intent(context, ChatActivity::class.java))
+        // 单例持有的是 Application Context，启动 Activity 必须带 NEW_TASK
+        context.startActivity(
+            Intent(context, ChatActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+        )
     }
 
     /**

@@ -46,6 +46,17 @@ val slteApplicationId = slteValue("SLTE_APPLICATION_ID") ?: "com.slte.app"
 val slteVersionCode = slteValue("SLTE_VERSION_CODE")?.toIntOrNull() ?: 1
 val slteVersionName = slteValue("SLTE_VERSION_NAME") ?: "2.0.0"
 
+// 编译期内核集合：逗号分隔，只能包含已注册实现；空/非法回退 mihomo。
+// 单内核包（1 项）不显示切换入口，多内核包由设置页切换。
+val slteKernels =
+    (slteValue("SLTE_KERNELS") ?: "mihomo")
+        .split(',')
+        .map { it.trim().lowercase() }
+        .filter { it in setOf("mihomo", "mihomo_smart") }
+        .distinct()
+        .ifEmpty { listOf("mihomo") }
+        .joinToString(",")
+
 // Android 包名的每一段必须以字母开头（数字不能打头：91.vip.fun 这类会被 AAPT 拒绝，
 // 报错出现在资源链接阶段，信息很不直观）。这里提前校验并给出可读提示。
 val sltePackageSegment = "[A-Za-z][A-Za-z0-9_]*"
@@ -95,8 +106,15 @@ android {
 
     applicationVariants.all {
         outputs.all {
+            // 非默认内核组合在 APK 名上带标识，便于下载后区分（与 CI 产物名同规则）
+            val kernelTag =
+                if (slteKernels == "mihomo") {
+                    ""
+                } else {
+                    "-${slteKernels.replace(",", "-")}"
+                }
             (this as com.android.build.gradle.internal.api.BaseVariantOutputImpl).outputFileName =
-                "SLTE-$versionName.apk"
+                "SLTE-$versionName$kernelTag.apk"
         }
     }
 
@@ -126,6 +144,8 @@ android {
         buildConfigField("String", "CRISP_WEBSITE_ID", "\"$slteCrispWebsiteId\"")
         buildConfigField("boolean", "CRISP_ENABLED", "$slteCrispEnabled")
         buildConfigField("String", "WEBSITE_URL", "\"$slteWebsiteUrl\"")
+
+        buildConfigField("String", "AVAILABLE_KERNELS", "\"$slteKernels\"")
     }
 
     signingConfigs {
@@ -252,6 +272,7 @@ dependencies {
 
     implementation(project(":kernel-service"))
     implementation(project(":kernel-common"))
+    implementation(libs.rikkax.multiprocess)
     implementation(libs.kaidl.runtime)
 
     implementation(libs.crisp.sdk)
@@ -263,6 +284,7 @@ dependencies {
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.mockk)
     testImplementation(libs.snakeyaml)
+    implementation(libs.snakeyaml)
     testImplementation(libs.robolectric)
     testImplementation(platform(libs.androidx.compose.bom))
     testImplementation(libs.androidx.ui.test.junit4)

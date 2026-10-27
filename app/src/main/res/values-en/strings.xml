@@ -109,7 +109,6 @@
     <string name="server_fallback">Fallback</string>
     <string name="server_fallback_now">Fallback (%1$s)</string>
     <string name="server_timeout">Timeout</string>
-    <string name="server_offline">Offline</string>
 
     <!-- Invite -->
     <string name="invite_title">Referral</string>
@@ -213,6 +212,8 @@
     <string name="settings_tun_stack_mixed">Mixed</string>
     <string name="settings_tun_stack_mixed_desc">Balanced</string>
     <string name="settings_tun_stack_switched">TUN stack switched</string>
+    <string name="settings_kernel">Kernel</string>
+    <string name="settings_kernel_switch_failed">Kernel switch failed</string>
     <string name="settings_change_password">Change password</string>
     <string name="settings_dark_mode">Dark mode</string>
     <string name="settings_change_pwd_old_hint">Current password</string>

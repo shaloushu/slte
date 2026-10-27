@@ -4,6 +4,6 @@ import androidx.annotation.Keep
 
 @Keep
 interface LogcatInterface {
-    /** true 表示结束订阅并释放原生回调。 */
+    /** 返回 true 表示订阅已结束，原生侧释放回调并退出日志循环。 */
     fun received(jsonPayload: String): Boolean
 }

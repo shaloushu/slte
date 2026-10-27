@@ -9,8 +9,8 @@ import com.slte.app.domain.model.SessionNotice
 import com.slte.app.domain.model.SessionState
 import com.slte.app.domain.model.User
 import com.slte.app.domain.repository.SessionRepository
-import com.slte.app.kernel.KernelBridge
 import com.slte.app.kernel.KernelConfig
+import com.slte.app.kernel.api.KernelApi
 import com.slte.app.utils.AppLog
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -34,7 +34,7 @@ constructor(
     private val authInterceptor: AuthInterceptor,
     private val authApi: AuthApi,
     private val crispManager: CrispManager,
-    private val kernelManager: KernelBridge,
+    private val kernelManager: KernelApi,
     private val kernelConfig: KernelConfig,
     private val fallbackDns: FallbackDns,
 ) : SessionRepository {

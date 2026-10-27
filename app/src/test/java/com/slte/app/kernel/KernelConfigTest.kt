@@ -2,6 +2,10 @@ package com.slte.app.kernel
 
 import android.content.Context
 import com.slte.app.BuildConfig
+import com.slte.app.kernel.api.KernelApi
+import com.slte.app.kernel.api.KernelProfile
+import com.slte.app.kernel.api.KernelProfiles
+import com.slte.app.kernel.api.KernelType
 import com.slte.app.support.MainDispatcherRule
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -28,7 +32,7 @@ class KernelConfigTest {
     val tmp = TemporaryFolder()
 
     private val context = mockk<Context>(relaxed = true)
-    private val manager = mockk<KernelManager>(relaxed = true)
+    private val manager = mockk<KernelApi>(relaxed = true)
     private val profiles = mockk<KernelProfiles>(relaxed = true)
     private val subscribeSource = mockk<SubscribeSource>(relaxed = true)
     private val remoteConfig = mockk<AppRemoteConfig>(relaxed = true)
@@ -52,11 +56,65 @@ class KernelConfigTest {
           - MATCH,节点选择
         """.trimIndent()
 
+    @Test
+    fun `切换到智能内核后重导出配置`() = runTest(mainRule.dispatcher) {
+        val uuid = UUID.randomUUID()
+        val cfg = config()
+        every { manager.type } returns KernelType.MIHOMO_SMART
+        coEvery { profiles.queryAll() } returns listOf(profile(uuid))
+        coEvery { profiles.queryByUUID(uuid) } returns profile(uuid)
+        coEvery { profiles.queryActive() } returns profile(uuid)
+        importedFile(uuid).writeText(SubscriptionSanitizer.sanitize(smartSourceYaml, expectedDomains))
+        tmp.root.resolve("imported/$uuid/.slte-kernel").writeText("mihomo")
+
+        cfg.ensureProfile()
+
+        // 原生库未加载时按标准内核处理，只校验重导出与标记（注入逻辑由 SmartPresetTest 覆盖）
+        assertTrue("配置应已写入", importedFile(uuid).exists())
+        assertEquals("mihomo_smart", tmp.root.resolve("imported/$uuid/.slte-kernel").readText())
+        assertTrue("pristine 副本应存在", tmp.root.resolve("imported/$uuid/config.pristine").exists())
+        coVerify { manager.notifyProfileChanged(uuid) }
+    }
+
+    @Test
+    fun `同内核类型连接不触发内核重载`() = runTest(mainRule.dispatcher) {
+        val uuid = UUID.randomUUID()
+        val cfg = config()
+        coEvery { profiles.queryAll() } returns listOf(profile(uuid))
+        coEvery { profiles.queryByUUID(uuid) } returns profile(uuid)
+        coEvery { profiles.queryActive() } returns profile(uuid)
+        val sanitized = SubscriptionSanitizer.sanitize(smartSourceYaml, expectedDomains)
+        importedFile(uuid).writeText(sanitized)
+        tmp.root.resolve("imported/$uuid/config.pristine").writeText(sanitized)
+        tmp.root.resolve("imported/$uuid/.slte-kernel").writeText("mihomo")
+
+        cfg.ensureProfile()
+
+        coVerify(exactly = 0) { manager.notifyProfileChanged(any()) }
+    }
+
+    private val smartSourceYaml =
+        """
+        proxies:
+          - name: "jp-01"
+            type: ss
+            server: 1.2.3.4
+            port: 8388
+        proxy-groups:
+          - name: 节点选择
+            type: select
+            proxies:
+              - jp-01
+        rules:
+          - MATCH,节点选择
+        """.trimIndent()
+
     private fun config(
         baseUrl: String = apiBaseUrl,
         domains: List<String> = listOf("example.net"),
     ): KernelConfig {
         every { context.filesDir } returns tmp.root
+        every { manager.type } returns KernelType.MIHOMO
         coEvery { manager.awaitProfile() } returns profiles
         every { remoteConfig.apiBaseUrl } returns baseUrl
         every { remoteConfig.directDomains } returns domains
