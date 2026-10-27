@@ -23,7 +23,9 @@ fun exportAndShareLog(context: Context): LogExportResult {
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
         context.startActivity(
-            Intent.createChooser(send, context.getString(R.string.about_log_export_share)),
+            Intent.createChooser(send, context.getString(R.string.about_log_export_share))
+                // 调用方可能传入 Application Context
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
         )
         LogExportResult.SUCCESS
     } catch (e: Exception) {

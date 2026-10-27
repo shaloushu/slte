@@ -88,7 +88,10 @@ constructor(
         if (!initialized) return
 
         email?.let { setUser(it, null) }
-        context.startActivity(Intent(context, ChatActivity::class.java))
+        // 单例持有的是 Application Context，启动 Activity 必须带 NEW_TASK
+        context.startActivity(
+            Intent(context, ChatActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+        )
     }
 
     /**
