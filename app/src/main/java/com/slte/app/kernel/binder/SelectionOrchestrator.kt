@@ -44,6 +44,8 @@ internal class SelectionOrchestrator(
             return false
         }
         clash.patchSelector(group, resolved)
+        // 全局模式流量走 GLOBAL，需同步
+        syncGlobal(clash, resolved)
         var now = clash.queryProxyGroup(group, KernelProxySort.DEFAULT).now
         repeat(VERIFY_ATTEMPTS) {
             delay(VERIFY_DELAY_MS)
@@ -94,8 +96,19 @@ internal class SelectionOrchestrator(
         val selector = primaryGroup(clash) ?: return false
         val target = findGroupByType(clash, type) ?: matchGroupName(clash, *keywords) ?: return false
         val result = clash.patchSelector(selector, target)
+        if (result) syncGlobal(clash, target)
         AppLog.d("SLTE-Kernel", "selectSpecial($type): selector=$selector target=$target result=$result")
         return result
+    }
+
+    /** 全局模式同步 GLOBAL 组。 */
+    private fun syncGlobal(
+        clash: KernelClash,
+        target: String,
+    ) {
+        if (clash.queryTunnelMode() != KernelTunnelMode.GLOBAL) return
+        val result = clash.patchSelector("GLOBAL", target)
+        AppLog.d("SLTE-Kernel", "syncGlobal: GLOBAL -> $target result=$result")
     }
 
     suspend fun ensureGlobal() {
@@ -135,6 +148,8 @@ internal class SelectionOrchestrator(
         group: String,
     ): String? {
         val groupNames = clash.queryProxyGroupNames(excludeNotSelectable = false).toSet()
+        // 叶子节点不可当分组查询，否则抛 invalid type
+        if (group !in groupNames) return group.takeIf { it.isNotBlank() }
         var state = clash.queryProxyGroup(group, KernelProxySort.DEFAULT)
         var selected = state.now
         // smart 组在未选中时 Now() 返回组名本身，按延迟挑最优节点代替
